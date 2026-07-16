@@ -1,60 +1,60 @@
 # Security Policy
 
-## Datenfluss
+## Data flow
 
-1. Erst nach einem expliziten Klick auf „Mit Claude Code verbinden“ fragt die App den lokalen macOS-Schlüsselbund nach genau einem Eintrag ab: Service `Claude Code-credentials`, Account = aktueller macOS-Benutzername.
-2. Aus dem JSON wird ausschließlich `claudeAiOauth.accessToken` sowie optional `subscriptionType` decodiert. Unbekannte oder ältere Strukturen werden abgelehnt und nicht rekursiv durchsucht.
-3. Der Access-Token wird einmal pro App-Prozess gelesen, im Arbeitsspeicher für die regelmäßigen Abrufe wiederverwendet und als `Authorization: Bearer …` verwendet. Nach einem Authentifizierungsfehler wird die Referenz verworfen; automatische Abrufe lesen den Schlüsselbund nicht erneut.
-4. Die einzige im Produktionscode erlaubte Zieladresse ist `https://api.anthropic.com/api/oauth/usage`. Weiterleitungen werden nicht verfolgt.
-5. Gespeichert werden ausschließlich Prozentwerte, Reset-Zeitpunkte und der Abrufzeitpunkt. Zugangsdaten sind kein Bestandteil des Cache-Modells.
+1. Only after an explicit click on "Mit Claude Code verbinden" does the app query the local macOS Keychain for exactly one item: service `Claude Code-credentials`, account = current macOS username.
+2. From the JSON, only `claudeAiOauth.accessToken` and optionally `subscriptionType` are decoded. Unknown or older structures are rejected and not searched recursively.
+3. The access token is read once per app process, reused in memory for the periodic fetches, and used as `Authorization: Bearer …`. After an authentication error the reference is discarded; automatic fetches do not read the Keychain again.
+4. The only destination address allowed in production code is `https://api.anthropic.com/api/oauth/usage`. Redirects are not followed.
+5. Only percentages, reset timestamps, and the fetch timestamp are stored. Credentials are not part of the cache model.
 
-Der Access-Token verlässt das Gerät notwendigerweise in der TLS-geschützten Anfrage an Anthropic. Ohne diese Authentifizierung kann der persönliche Usage-Endpoint nicht abgefragt werden. Er wird niemals an Kollegen, dieses Repository, einen eigenen Server oder einen Drittanbieter übertragen.
+The access token necessarily leaves the device in the TLS-protected request to Anthropic. Without this authentication the personal usage endpoint cannot be queried. It is never transmitted to colleagues, this repository, any own server, or a third party.
 
-## Plattformschutz
+## Platform protection
 
-- App Sandbox: aktiv
-- Sandbox-Entitlements: ausschließlich `com.apple.security.app-sandbox` und `com.apple.security.network.client`
-- Hardened Runtime: aktiv, ohne Runtime-Ausnahmen
-- App Transport Security: Standardregeln, keine Ausnahmen
-- Netzwerk: ephemere `URLSession`, keine Cookies, kein URL-Cache, TLS 1.2 als Mindestversion
-- Interner Build: ad-hoc-signiert, eindeutig als `UNNOTARIZED` gekennzeichnet; keine durch Apple bestätigte Herausgeberidentität und keine Apple-Notarisierung
-- Optionaler offizieller Release-Weg: Developer ID, sicherer Timestamp, Apple-Notarisierung, Stapling und Gatekeeper-Prüfung
-- Architektur: arm64; keine Intel-Binaries
+- App Sandbox: enabled
+- Sandbox entitlements: exclusively `com.apple.security.app-sandbox` and `com.apple.security.network.client`
+- Hardened Runtime: enabled, with no runtime exceptions
+- App Transport Security: default rules, no exceptions
+- Network: ephemeral `URLSession`, no cookies, no URL cache, TLS 1.2 as the minimum version
+- Internal build: ad-hoc signed, clearly marked `UNNOTARIZED`; no Apple-confirmed publisher identity and no Apple notarization
+- Optional official release path: Developer ID, secure timestamp, Apple notarization, stapling, and Gatekeeper check
+- Architecture: arm64; no Intel binaries
 
-Die Keychain-Zugriffsentscheidung und einen möglichen Freigabedialog kontrolliert macOS. Die App schreibt und verändert keinen Claude-Code-Keychain-Eintrag.
+macOS controls the Keychain access decision and any authorization dialog. The app does not write or modify any Claude Code Keychain item.
 
-## Bewusst ausgeschlossene Fähigkeiten
+## Deliberately excluded capabilities
 
-- keine Shell- oder Prozessausführung
-- keine Apple Events oder Automation
-- kein Lesen beliebiger Dateien im Home-Verzeichnis
-- kein Import oder Export von Credentials
-- keine eigene Login-Maske
-- keine Telemetrie, Crash-Uploads oder Analytics
-- keine Update-Komponente
-- keine Drittanbieter-Abhängigkeiten
+- no shell or process execution
+- no Apple Events or automation
+- no reading of arbitrary files in the home directory
+- no import or export of credentials
+- no built-in login form
+- no telemetry, crash uploads, or analytics
+- no update component
+- no third-party dependencies
 
-## Bedrohungsgrenzen
+## Threat boundaries
 
-Die Architektur schützt nicht gegen ein bereits kompromittiertes Benutzerkonto, Betriebssystem oder Claude-Code-Keychain-Item. Systemweite Proxies, installierte Root-Zertifikate und Endpoint-Security-Produkte unterliegen der Kontrolle des jeweiligen Macs beziehungsweise der Organisation. Der verwendete Anthropic-Endpoint ist undokumentiert; eine Änderung kann die App funktionsunfähig machen und muss vor einem Update erneut auditiert werden.
+The architecture does not protect against an already-compromised user account, operating system, or Claude Code Keychain item. System-wide proxies, installed root certificates, and endpoint-security products are under the control of the respective Mac or organization. The Anthropic endpoint used is undocumented; a change can render the app non-functional and must be re-audited before an update.
 
-Eine absolute Garantie, dass ein Geheimnis niemals im Prozessspeicher erscheint, ist bei Bearer-Authentifizierung nicht möglich. Die App minimiert Lebensdauer und Persistenz, besitzt aber keine API, mit der Swift-Strings oder interne `URLSession`-Puffer zuverlässig überschrieben werden können.
+An absolute guarantee that a secret never appears in process memory is not possible with Bearer authentication. The app minimizes lifetime and persistence but has no API with which Swift strings or internal `URLSession` buffers could be reliably overwritten.
 
-## Distributionsmodell
+## Distribution model
 
-`Scripts/build-shareable.sh` erzeugt bewusst einen ad-hoc-signierten internen Build als ZIP und Prüfsummendatei direkt unter `dist/`. Beide tragen dauerhaft den Zusatz `UNNOTARIZED`. Empfänger müssen mit einer Gatekeeper-Warnung rechnen und können die Herausgeberidentität nicht über Apple verifizieren. Die SHA-256-Prüfsumme sollte über einen getrennten, vertrauenswürdigen Kanal verglichen werden; die stärkste Prüfung bleibt ein eigener Build aus dem auditierten Quellcode.
+`Scripts/build-shareable.sh` deliberately produces an ad-hoc-signed internal build as a ZIP and checksum file directly under `dist/`. Both permanently carry the `UNNOTARIZED` suffix. Recipients must expect a Gatekeeper warning and cannot verify the publisher identity through Apple. The SHA-256 checksum should be compared over a separate, trusted channel; the strongest check remains building it yourself from the audited source.
 
-Das Projekt empfiehlt weder das globale Abschalten von Gatekeeper noch das pauschale Entfernen von Quarantäneattributen. Wenn organisatorische Richtlinien eine Developer-ID-Signatur verlangen, darf der unnotarisierte Build nicht eingesetzt werden.
+The project recommends neither globally disabling Gatekeeper nor bulk-removing quarantine attributes. If organizational policy requires a Developer ID signature, the unnotarized build must not be used.
 
-`Scripts/build-notarized.sh` bleibt als optionaler, strenger Release-Weg erhalten und bricht ohne Developer-ID-Identität oder Notarisierungsprofil ab.
+`Scripts/build-notarized.sh` remains available as an optional, strict release path and aborts without a Developer ID identity or notarization profile.
 
-## Sicherheitslücken melden
+## Reporting vulnerabilities
 
-Bitte keine Tokens, Keychain-Auszüge oder personenbezogenen Daten in öffentliche Issues kopieren. Für ein öffentliches GitHub-Repository sollte die Funktion „Private vulnerability reporting“ aktiviert und für vertrauliche Meldungen verwendet werden.
+Please do not copy tokens, Keychain dumps, or personal data into public issues. For a public GitHub repository, enable the "Private vulnerability reporting" feature and use it for confidential reports.
 
-## Referenzen
+## References
 
 - [Apple: App Sandbox](https://developer.apple.com/documentation/security/app-sandbox)
 - [Apple: Keychain Services](https://developer.apple.com/documentation/security/keychain-services)
-- [Apple: Sichere Netzwerkverbindungen mit ATS](https://developer.apple.com/documentation/security/preventing-insecure-network-connections)
-- [Apple: macOS-Software notarizieren](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
+- [Apple: Preventing Insecure Network Connections with ATS](https://developer.apple.com/documentation/security/preventing-insecure-network-connections)
+- [Apple: Notarizing macOS Software Before Distribution](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)

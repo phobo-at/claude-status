@@ -1,24 +1,24 @@
-# Datenschutz
+# Privacy
 
-Claude Status verarbeitet nur Daten, die für die lokale Anzeige der Nutzungslimits nötig sind.
+Claude Status processes only the data needed to display usage limits locally.
 
-## Verarbeitete Daten
+## Data processed
 
-- Claude-Code-OAuth-Access-Token: wird nach Nutzerfreigabe einmal pro App-Start aus dem lokalen macOS-Schlüsselbund gelesen, im Arbeitsspeicher für weitere Abrufe wiederverwendet und ausschließlich für die authentifizierte HTTPS-Anfrage an Anthropic verwendet.
-- Planart: wird, sofern vorhanden, aus dem Feld `subscriptionType` desselben lokalen Keychain-Payloads abgeleitet.
-- Usage-Daten: Prozentwerte, Reset-Zeitpunkte und Abrufzeitpunkt vom Anthropic-Endpoint.
-- Lokale Einstellung: ein Boolean merkt sich, ob der Nutzer die Verbindung zur Claude-Code-Anmeldung ausdrücklich aktiviert hat.
+- Claude Code OAuth access token: after user authorization, read once per app launch from the local macOS Keychain, reused in memory for further fetches, and used exclusively for the authenticated HTTPS request to Anthropic.
+- Plan type: derived, if present, from the `subscriptionType` field of the same local Keychain payload.
+- Usage data: percentages, reset timestamps, and the fetch timestamp from the Anthropic endpoint.
+- Local setting: a boolean remembers whether the user has explicitly enabled the connection to the Claude Code login.
 
-## Speicherung
+## Storage
 
-Der Access-Token wird nicht durch Claude Status persistiert. Der lokale Cache enthält ausschließlich Usage-Daten. Im App-Sandbox-Container erhält die Cache-Datei POSIX-Rechte `0600`, ihr Ordner `0700`.
+The access token is not persisted by Claude Status. The local cache contains usage data only. In the app sandbox container, the cache file has POSIX permissions `0600` and its folder `0700`.
 
-## Übertragung
+## Transmission
 
-Die einzige durch die App initiierte Übertragung geht per HTTPS an `api.anthropic.com`. Sie enthält den OAuth-Access-Token im Authorization-Header und keine von Claude Status ergänzten Analyse- oder Gerätekennungen. Es gibt keine eigenen Backend-Systeme und keine Weitergabe an Kollegen oder Drittanbieter durch die App.
+The only transmission initiated by the app goes via HTTPS to `api.anthropic.com`. It contains the OAuth access token in the Authorization header and no analytics or device identifiers added by Claude Status. There are no own backend systems and no sharing with colleagues or third parties by the app.
 
-Die fehlende Apple-Notarisierung ändert diesen implementierten Datenfluss nicht, nimmt Empfängern aber die Möglichkeit, die Herausgeberidentität über Apple zu prüfen. Deshalb sollten Binärpaket und Prüfsumme nur aus einem vereinbarten vertrauenswürdigen Kanal bezogen werden.
+The missing Apple notarization does not change this implemented data flow, but it removes recipients' ability to verify the publisher identity through Apple. The binary package and checksum should therefore only be obtained from an agreed, trusted channel.
 
-## Löschen
+## Deletion
 
-Beim Entfernen der App kann der zugehörige Sandbox-Container unter `~/Library/Containers/io.github.phobo-at.ClaudeStatus` gelöscht werden. Der Claude-Code-Keychain-Eintrag gehört Claude Code und wird von Claude Status weder erstellt noch gelöscht.
+When removing the app, the associated sandbox container under `~/Library/Containers/io.github.phobo-at.ClaudeStatus` can be deleted. The Claude Code Keychain item belongs to Claude Code and is neither created nor deleted by Claude Status.
