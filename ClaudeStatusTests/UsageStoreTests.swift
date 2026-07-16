@@ -125,6 +125,93 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(requestCount, 2)
     }
 
+    func testPopoverRefreshesOnlyWhenSnapshotIsAtLeastTwoMinutesOld() async {
+        let defaults = makeDefaults()
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let usageClient = CountingUsageClient(snapshot: Self.snapshot(utilization: 10))
+        let store = UsageStore(
+            credentialProvider: SuccessfulCredentialProvider(),
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        await store.connect()
+        await store.popoverOpened()
+        var requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 1)
+
+        clock.advance(by: UsageStore.minimumAutomaticRefreshAge - 1)
+        await store.popoverOpened()
+        requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 1)
+
+        clock.advance(by: 1)
+        await store.popoverOpened()
+        requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    func testManualRefreshStillFetchesWhenSnapshotIsFresh() async {
+        let defaults = makeDefaults()
+        let usageClient = CountingUsageClient(snapshot: Self.snapshot(utilization: 10))
+        let store = UsageStore(
+            credentialProvider: SuccessfulCredentialProvider(),
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { Date(timeIntervalSince1970: 1_000) }
+        )
+
+        await store.connect()
+        await store.manualRefresh()
+
+        let requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    func testRateLimitBlocksEveryRefreshUntilRetryAfterExpires() async {
+        let defaults = makeDefaults()
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let snapshot = Self.snapshot(utilization: 10)
+        let usageClient = ScriptedUsageClient(results: [
+            .success(snapshot),
+            .failure(.rateLimited(retryAfter: 600)),
+            .success(snapshot),
+        ])
+        let store = UsageStore(
+            credentialProvider: SuccessfulCredentialProvider(),
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        await store.connect()
+        await store.manualRefresh()
+
+        XCTAssertEqual(store.nextRefreshAllowedAt, Date(timeIntervalSince1970: 1_600))
+        XCTAssertFalse(store.canRefresh)
+
+        await store.manualRefresh()
+        await store.popoverOpened()
+        var requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 2)
+
+        clock.advance(by: 599)
+        await store.manualRefresh()
+        requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 2)
+
+        clock.advance(by: 1)
+        await store.manualRefresh()
+        requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 3)
+        XCTAssertNil(store.nextRefreshAllowedAt)
+        XCTAssertEqual(store.state, .current)
+    }
+
     private func makeStore(
         usageClient: any UsageFetching = SuccessfulUsageClient(snapshot: snapshot(utilization: 10)),
         cache: any SnapshotCaching = MemorySnapshotCache(),
@@ -185,6 +272,56 @@ private struct SuccessfulUsageClient: UsageFetching {
 private struct FailingUsageClient: UsageFetching {
     let error: any Error & Sendable
     func fetchUsage(accessToken: String) async throws -> UsageSnapshot { throw error }
+}
+
+private actor CountingUsageClient: UsageFetching {
+    private(set) var requestCount = 0
+    let snapshot: UsageSnapshot
+
+    init(snapshot: UsageSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    func fetchUsage(accessToken: String) async throws -> UsageSnapshot {
+        requestCount += 1
+        return snapshot
+    }
+}
+
+private actor ScriptedUsageClient: UsageFetching {
+    private(set) var requestCount = 0
+    private var results: [Result<UsageSnapshot, UsageClientError>]
+
+    init(results: [Result<UsageSnapshot, UsageClientError>]) {
+        self.results = results
+    }
+
+    func fetchUsage(accessToken: String) async throws -> UsageSnapshot {
+        requestCount += 1
+        guard !results.isEmpty else {
+            throw UsageClientError.invalidResponse
+        }
+        return try results.removeFirst().get()
+    }
+}
+
+private final class TestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date: Date
+
+    init(_ date: Date) {
+        self.date = date
+    }
+
+    var now: Date {
+        lock.withLock { date }
+    }
+
+    func advance(by interval: TimeInterval) {
+        lock.withLock {
+            date = date.addingTimeInterval(interval)
+        }
+    }
 }
 
 private actor MemorySnapshotCache: SnapshotCaching {

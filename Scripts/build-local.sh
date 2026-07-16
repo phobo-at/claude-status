@@ -5,10 +5,9 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 ROOT_DIR="${SCRIPT_DIR:h}"
 DERIVED_DATA="${ROOT_DIR}/.build/local"
-DIST_DIR="${ROOT_DIR}/dist/local"
+DIST_DIR="${ROOT_DIR}/.build/local-output"
 SOURCE_APP="${DERIVED_DATA}/Build/Products/Release/ClaudeStatus.app"
 OUTPUT_APP="${DIST_DIR}/ClaudeStatus.app"
-OUTPUT_ZIP="${DIST_DIR}/ClaudeStatus-Apple-Silicon-LOCAL-UNNOTARIZED.zip"
 ENTITLEMENTS="${ROOT_DIR}/ClaudeStatus/ClaudeStatus.entitlements"
 LOCAL_SIGNING_IDENTITY="${LOCAL_SIGNING_IDENTITY:-}"
 
@@ -28,7 +27,7 @@ fi
 "${SCRIPT_DIR}/security-check.sh"
 
 mkdir -p "${DIST_DIR}"
-rm -rf "${DERIVED_DATA}" "${OUTPUT_APP}" "${OUTPUT_ZIP}"
+rm -rf "${DERIVED_DATA}" "${OUTPUT_APP}"
 
 if command -v xcodegen >/dev/null 2>&1; then
   xcodegen generate --spec "${ROOT_DIR}/project.yml"
@@ -57,14 +56,5 @@ xcodebuild \
   "${OUTPUT_APP}"
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${OUTPUT_APP}"
-/usr/bin/ditto \
-  -c \
-  -k \
-  --sequesterRsrc \
-  --keepParent \
-  "${OUTPUT_APP}" \
-  "${OUTPUT_ZIP}"
-
-/usr/bin/shasum -a 256 "${OUTPUT_ZIP}"
 echo "Nur lokaler Testbuild, nicht zur internen Verteilung freigegeben: ${OUTPUT_APP}"
 echo "Lokale Signatur: ${LOCAL_SIGNING_IDENTITY}"

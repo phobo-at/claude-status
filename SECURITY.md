@@ -42,7 +42,7 @@ Eine absolute Garantie, dass ein Geheimnis niemals im Prozessspeicher erscheint,
 
 ## Distributionsmodell
 
-`Scripts/build-shareable.sh` erzeugt bewusst einen ad-hoc-signierten internen Build unter `dist/internal/`. ZIP und Prüfsummendatei tragen dauerhaft den Zusatz `UNNOTARIZED`. Empfänger müssen mit einer Gatekeeper-Warnung rechnen und können die Herausgeberidentität nicht über Apple verifizieren. Die SHA-256-Prüfsumme sollte über einen getrennten, vertrauenswürdigen Kanal verglichen werden; die stärkste Prüfung bleibt ein eigener Build aus dem auditierten Quellcode.
+`Scripts/build-shareable.sh` erzeugt bewusst einen ad-hoc-signierten internen Build als ZIP und Prüfsummendatei direkt unter `dist/`. Beide tragen dauerhaft den Zusatz `UNNOTARIZED`. Empfänger müssen mit einer Gatekeeper-Warnung rechnen und können die Herausgeberidentität nicht über Apple verifizieren. Die SHA-256-Prüfsumme sollte über einen getrennten, vertrauenswürdigen Kanal verglichen werden; die stärkste Prüfung bleibt ein eigener Build aus dem auditierten Quellcode.
 
 Das Projekt empfiehlt weder das globale Abschalten von Gatekeeper noch das pauschale Entfernen von Quarantäneattributen. Wenn organisatorische Richtlinien eine Developer-ID-Signatur verlangen, darf der unnotarisierte Build nicht eingesetzt werden.
 

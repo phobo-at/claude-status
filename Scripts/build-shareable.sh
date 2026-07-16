@@ -5,9 +5,9 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 ROOT_DIR="${SCRIPT_DIR:h}"
 DERIVED_DATA="${ROOT_DIR}/.build/internal-unnotarized"
-DIST_DIR="${ROOT_DIR}/dist/internal"
+DIST_DIR="${ROOT_DIR}/dist"
 SOURCE_APP="${DERIVED_DATA}/Build/Products/Release/ClaudeStatus.app"
-OUTPUT_APP="${DIST_DIR}/ClaudeStatus.app"
+OUTPUT_APP="${DERIVED_DATA}/ClaudeStatus.app"
 OUTPUT_ZIP="${DIST_DIR}/ClaudeStatus-Apple-Silicon-UNNOTARIZED.zip"
 CHECKSUM_FILE="${OUTPUT_ZIP}.sha256"
 ENTITLEMENTS="${ROOT_DIR}/ClaudeStatus/ClaudeStatus.entitlements"
@@ -15,7 +15,7 @@ ENTITLEMENTS="${ROOT_DIR}/ClaudeStatus/ClaudeStatus.entitlements"
 "${SCRIPT_DIR}/security-check.sh"
 
 mkdir -p "${DIST_DIR}"
-rm -rf "${DERIVED_DATA}" "${OUTPUT_APP}" "${OUTPUT_ZIP}" "${CHECKSUM_FILE}"
+rm -rf "${DERIVED_DATA}" "${OUTPUT_ZIP}" "${CHECKSUM_FILE}"
 
 if command -v xcodegen >/dev/null 2>&1; then
   xcodegen generate --spec "${ROOT_DIR}/project.yml"

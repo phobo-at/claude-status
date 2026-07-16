@@ -13,6 +13,9 @@ enum UsageDisplayState: Equatable, Sendable {
 
 @MainActor
 final class UsageStore: ObservableObject {
+    static let automaticRefreshInterval: TimeInterval = 5 * 60
+    static let minimumAutomaticRefreshAge: TimeInterval = 2 * 60
+
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var planName: String?
     @Published private(set) var state: UsageDisplayState = .disconnected
@@ -119,7 +122,7 @@ final class UsageStore: ObservableObject {
         guard isConnectionAuthorized else {
             return
         }
-        await refresh(force: false, allowCredentialPrompt: false)
+        await refreshAutomaticallyIfStale()
     }
 
     func manualRefresh() async {
@@ -176,6 +179,15 @@ final class UsageStore: ObservableObject {
             handleRefreshError(error)
         }
         isRefreshing = false
+    }
+
+    private func refreshAutomaticallyIfStale() async {
+        if let fetchedAt = snapshot?.fetchedAt,
+           now().timeIntervalSince(fetchedAt) < Self.minimumAutomaticRefreshAge
+        {
+            return
+        }
+        await refresh(force: false, allowCredentialPrompt: false)
     }
 
     private func accept(_ newSnapshot: UsageSnapshot) async {
@@ -238,14 +250,14 @@ final class UsageStore: ObservableObject {
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(for: .seconds(60))
+                    try await Task.sleep(for: .seconds(Self.automaticRefreshInterval))
                 } catch {
                     return
                 }
                 guard !Task.isCancelled else {
                     return
                 }
-                await self?.refresh(force: false, allowCredentialPrompt: false)
+                await self?.refreshAutomaticallyIfStale()
             }
         }
 
@@ -255,7 +267,7 @@ final class UsageStore: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                await self?.refresh(force: true, allowCredentialPrompt: false)
+                await self?.refreshAutomaticallyIfStale()
             }
         }
     }

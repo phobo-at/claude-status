@@ -1,144 +1,106 @@
 # Claude Status
 
-Eine kleine native macOS-Menüleisten-App, die die persönlichen Claude-/Claude-Code-Nutzungsfenster anzeigt. Die App ist ausschließlich für Apple Silicon und macOS 14 oder neuer gebaut.
-
-Öffentlicher Bundle-Identifier: `io.github.phobo-at.ClaudeStatus`.
+A small native macOS menu-bar app that shows your personal Claude / Claude Code usage windows. Apple Silicon only, macOS 14 or newer. Bundle identifier: `io.github.phobo-at.ClaudeStatus`.
 
 > [!IMPORTANT]
-> Claude Status ist ein unabhängiges, inoffizielles Projekt und steht nicht in Verbindung mit Anthropic. Die bereitgestellten internen Builds sind bewusst **nicht mit einer Apple Developer ID signiert und nicht notarisiert**. macOS kann ihre Herausgeberidentität daher nicht bestätigen und zeigt beim ersten Start eine Gatekeeper-Warnung. Der Quellcode, die Sandbox und der Datenfluss bleiben davon getrennte Sicherheitsaspekte.
+> Claude Status is an independent, unofficial project and is not affiliated with Anthropic. The internal builds are deliberately **not signed with an Apple Developer ID and not notarized**, so macOS cannot confirm the publisher and shows a Gatekeeper warning on first launch. Source code, sandbox, and data flow are separate security concerns from that.
 
-## Sicherheitsmodell
+## Security model
 
-- Jeder Nutzer verwendet ausschließlich seinen eigenen, bereits vorhandenen Claude-Code-Login im lokalen macOS-Schlüsselbund.
-- Die App liest exakt den generischen Passwort-Eintrag `Claude Code-credentials` für den aktuellen macOS-Benutzernamen. Es gibt keine Suche nach ähnlichen Einträgen und keinen Legacy-Fallback.
-- Der Access-Token wird einmal pro App-Start gelesen, nur im Arbeitsspeicher wiederverwendet und nicht gespeichert, geloggt, in die Zwischenablage geschrieben oder an andere Nutzer übertragen. Nach einem `401` stoppt der automatische Abruf; erst eine explizite Nutzeraktion liest den Schlüsselbund erneut.
-- Der Token wird ausschließlich als Bearer-Token per HTTPS an `https://api.anthropic.com/api/oauth/usage` gesendet. Das ist technisch notwendig, um die persönliche Nutzung abzurufen.
-- HTTP-Weiterleitungen werden abgelehnt. Cookies, URL-Cache und persistente Netzwerkdaten sind deaktiviert.
-- Die App startet keine Shell und kein anderes Programm. Nach einem abgelaufenen Login muss der Nutzer `claude auth login` selbst ausführen.
-- App Sandbox und Hardened Runtime sind aktiv. Die Sandbox besitzt nur das Entitlement für ausgehende Netzwerkverbindungen.
-- Lokal gespeichert wird lediglich der letzte Usage-Snapshot mit Dateirechten `0600`; der Ordner erhält `0700`.
-- Keine Analytics, Telemetrie, Werbung, Drittanbieter-SDKs oder externen Swift-Pakete.
+- Uses only your own existing Claude Code login in the local macOS Keychain.
+- Reads exactly the generic-password item `Claude Code-credentials` for the current macOS user — no fuzzy matching, no legacy fallback.
+- The access token is read once per app launch, kept in memory only, and never stored, logged, copied to the clipboard, or shared. After a `401` the automatic fetch stops until you explicitly retry.
+- The token is sent only as a Bearer token over HTTPS to `https://api.anthropic.com/api/oauth/usage` — technically required to fetch your usage.
+- HTTP redirects are rejected; cookies, URL cache, and persistent network storage are disabled.
+- The app never launches a shell or any other program. After an expired login you run `claude auth login` yourself.
+- App Sandbox and Hardened Runtime are on; the sandbox holds only the outgoing-network entitlement.
+- The only thing stored locally is the last usage snapshot (file `0600`, directory `0700`).
+- No analytics, telemetry, ads, third-party SDKs, or external Swift packages.
+- Automatic polling runs at most every five minutes. Opening the popover or waking the Mac fetches only when the snapshot is at least two minutes old. An Anthropic `Retry-After` blocks automatic and manual requests until it expires.
 
-Details und Grenzen stehen in [SECURITY.md](SECURITY.md) und [PRIVACY.md](PRIVACY.md).
+Full details and limits are in [SECURITY.md](SECURITY.md) and [PRIVACY.md](PRIVACY.md).
 
-## Was „unnotarisiert“ konkret bedeutet
+## What "unnotarized" means
 
-Der interne Build ist ad hoc signiert. Dadurch kann macOS erkennen, ob das App-Bundle nach dem Signieren verändert wurde, und die Sandbox-Entitlements anwenden. Die Signatur beweist jedoch **nicht**, wer die App veröffentlicht hat. Außerdem wurde die Binärdatei nicht durch Apples Notarisierungsdienst auf bekannte Schadsoftware und Signaturfehler geprüft.
+The shareable build is ad-hoc signed, so macOS can detect post-signing tampering and apply the sandbox entitlements — but the signature does **not** prove who published the app, and Apple's notary service has not scanned the binary. Recipients must establish trust themselves, ideally by at least one of: building from audited source, comparing the published SHA-256 checksum over a separate trusted channel, or obtaining the package only from the agreed internal channel or official repository. Do not distribute the app where policy allows only Developer-ID-signed or notarized applications.
 
-Empfänger müssen deshalb selbst Vertrauen herstellen, idealerweise durch mindestens eine dieser Methoden:
+## Requirements
 
-1. den Quellcode prüfen und die App selbst bauen;
-2. die veröffentlichte SHA-256-Prüfsumme über einen getrennten, vertrauenswürdigen Kanal vergleichen;
-3. das Paket nur aus dem vereinbarten internen Kanal oder dem offiziellen Repository beziehen.
+- Apple Silicon Mac, macOS 14+
+- Claude Code with an active login (`claude auth login`)
+- To build: Xcode with Swift 6
+- Optional: [XcodeGen](https://github.com/yonaskolb/XcodeGen) if you edit `project.yml`
 
-Die App darf nicht verteilt werden, wenn eure IT-Richtlinien ausschließlich Developer-ID-signierte oder notarisierten Anwendungen zulassen.
-
-## Voraussetzungen
-
-- Apple-Silicon-Mac mit macOS 14 oder neuer
-- Claude Code mit einem aktiven Login (`claude auth login`)
-- Zum Selbstbauen: Xcode mit Swift 6
-- Optional: [XcodeGen](https://github.com/yonaskolb/XcodeGen), wenn `project.yml` geändert wird
-
-## Internes Paket bauen
+## Build the shareable package
 
 ```sh
 ./Scripts/build-shareable.sh
 ```
 
-Das Skript führt zuerst die statischen Sicherheitsregeln aus, baut ausschließlich `arm64`, signiert ad hoc und erzeugt:
+Runs the static security checks, builds `arm64` only, ad-hoc signs, and produces:
 
-- `dist/internal/ClaudeStatus.app`
-- `dist/internal/ClaudeStatus-Apple-Silicon-UNNOTARIZED.zip`
-- `dist/internal/ClaudeStatus-Apple-Silicon-UNNOTARIZED.zip.sha256`
+- `dist/ClaudeStatus-Apple-Silicon-UNNOTARIZED.zip`
+- `dist/ClaudeStatus-Apple-Silicon-UNNOTARIZED.zip.sha256`
 
-Die Bezeichnung `UNNOTARIZED` ist absichtlich Bestandteil des Dateinamens und darf für die Weitergabe nicht entfernt werden.
+`dist/` holds only what you hand to colleagues. The `UNNOTARIZED` marker in the filename is intentional — keep it. (Local dev builds go to `.build/local-output/` and are not packaged.)
 
-## Installation durch Kollegen
+## Install (for colleagues)
 
-ZIP und Prüfsummendatei im selben Ordner ablegen und zuerst prüfen:
+Put the ZIP and its checksum in the same folder and verify first:
 
 ```sh
 shasum -a 256 -c ClaudeStatus-Apple-Silicon-UNNOTARIZED.zip.sha256
 ```
 
-Anschließend:
+Then:
 
-1. ZIP entpacken und `ClaudeStatus.app` nach `/Applications` ziehen.
-2. Die App im Finder mit Rechtsklick → **Öffnen** starten.
-3. Falls macOS weiterhin blockiert: **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen** verwenden.
-4. Im Menüleisten-Popover auf **Mit Claude Code verbinden** klicken.
-5. Den macOS-Schlüsselbunddialog sorgfältig prüfen und den Zugriff erlauben. Bei unverändertem, verifiziertem Build kann „Immer erlauben“ gewählt werden.
+1. Unzip and drag `ClaudeStatus.app` to `/Applications`.
+2. Launch it via right-click → **Open** in Finder.
+3. If macOS still blocks it: **System Settings → Privacy & Security → Open Anyway**.
+4. Click **Mit Claude Code verbinden** in the menu-bar popover.
+5. Review the Keychain dialog carefully and allow access. For an unchanged, verified build you may choose "Always Allow".
 
-Nicht empfohlen werden das globale Abschalten von Gatekeeper oder Befehle zum pauschalen Entfernen von Quarantäneattributen. Die Warnung ist bei diesem Distributionsmodell erwartetes Sicherheitsverhalten von macOS.
+Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the app has no stable Developer ID, macOS may ask for Keychain access again after an update; within a running process the Keychain item is read only once.
 
-Weil die App keine stabile Developer-ID-Identität besitzt, kann macOS nach einem App-Update erneut nach dem Schlüsselbundzugriff fragen. Während eines laufenden App-Prozesses wird der Keychain-Eintrag nur einmal gelesen.
-
-## Lokal entwickeln und testen
-
-Das eingecheckte Xcode-Projekt direkt öffnen:
+## Develop & test locally
 
 ```sh
-open ClaudeStatus.xcodeproj
-```
+open ClaudeStatus.xcodeproj          # the checked-in Xcode project
 
-Lokaler Build mit vorhandener Apple-Development-Identität, andernfalls ad hoc:
+./Scripts/build-local.sh             # local build (Apple Development identity, else ad-hoc) → .build/local-output/ClaudeStatus.app
 
-```sh
-./Scripts/build-local.sh
-```
+./Scripts/security-check.sh          # static security rules
 
-Tests:
-
-```sh
-xcodebuild \
-  -project ClaudeStatus.xcodeproj \
-  -scheme ClaudeStatus \
+xcodebuild -project ClaudeStatus.xcodeproj -scheme ClaudeStatus \
   -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath /tmp/ClaudeStatusDerivedData \
-  CODE_SIGNING_ALLOWED=NO \
-  test
+  CODE_SIGNING_ALLOWED=NO test       # tests
 ```
 
-Statische Sicherheitsregeln:
+## Optional: notarized package
 
-```sh
-./Scripts/security-check.sh
-```
-
-## Optional: notarisiertes Paket
-
-Falls ein Fork oder ein späterer Maintainer eine Apple Developer ID besitzt, bleibt der notarisierten Release-Weg erhalten:
+If a fork or later maintainer has an Apple Developer ID, the notarized path stays available:
 
 ```sh
 xcrun notarytool store-credentials "ClaudeStatus-Notary"
 
-DEVELOPER_ID_APPLICATION="Developer ID Application: ORGANISATION (TEAMID)" \
+DEVELOPER_ID_APPLICATION="Developer ID Application: ORG (TEAMID)" \
 NOTARY_PROFILE="ClaudeStatus-Notary" \
 ./Scripts/build-notarized.sh
 ```
 
-Das Skript veröffentlicht nur nach erfolgreicher Signatur, Notarisierung, Stapling- und Gatekeeper-Prüfung ein Paket unter `dist/release/`.
+It publishes to `dist/release/` only after successful signing, notarization, stapling, and Gatekeeper checks.
 
-## GitHub-Veröffentlichung
+## Publishing on GitHub
 
-`dist/`, `.build/`, Xcode-Benutzerdaten, Zertifikate und Umgebungsdateien werden ignoriert. Vor einem Push sollten Tests und `./Scripts/security-check.sh` erfolgreich sein. GitHub Actions wiederholt die Prüfungen auf einem arm64-macOS-Runner; die Checkout-Action ist auf einen festen Commit gepinnt und persistiert keine Git-Credentials.
+`dist/`, `.build/`, Xcode user data, certificates, and env files are ignored. Tests and `./Scripts/security-check.sh` should pass before every push; CI re-runs them on an arm64 macOS runner with the checkout action pinned to a fixed commit and no persisted git credentials. For releases, always publish together: the `UNNOTARIZED` ZIP, its `.sha256`, a link to this install/security info, and the matching source state or git tag. Enable "Private vulnerability reporting" on the repo, and never paste tokens, Keychain dumps, or personal data into public issues.
 
-Für Releases sollten immer gemeinsam veröffentlicht werden:
+The repo currently has no `LICENSE`: the code is publicly viewable but not automatically open source, and third parties get no blanket permission to use or redistribute it. Choose a license deliberately before any real open-source release.
 
-- das eindeutig als `UNNOTARIZED` bezeichnete ZIP;
-- die dazugehörige `.sha256`-Datei;
-- ein Hinweis auf diese Installations- und Sicherheitsinformationen;
-- der zugehörige Quellcode-Stand beziehungsweise Git-Tag.
+## Limitations
 
-Im GitHub-Repository sollte „Private vulnerability reporting“ aktiviert werden. Keine Tokens, Keychain-Auszüge oder personenbezogenen Daten in öffentliche Issues kopieren.
-
-Aktuell enthält das Repository keine `LICENSE`. Damit ist der Code öffentlich einsehbar, aber nicht automatisch Open Source und Dritte erhalten keine pauschale Erlaubnis zur Nutzung oder Weiterverbreitung. Vor einer echten Open-Source-Veröffentlichung muss der Eigentümer bewusst eine Lizenz auswählen.
-
-## Technische und organisatorische Grenzen
-
-- Die App verwendet den von Claude Code genutzten Endpoint `/api/oauth/usage`. Er ist keine dokumentierte öffentliche Anthropic-API, kann sich ändern oder künftig gesperrt werden.
-- Eine ad-hoc-signierte App besitzt keine durch Apple bestätigte Herausgeberidentität und keine Apple-Notarisierung.
-- Der Access-Token muss für den authentifizierten Abruf per TLS an Anthropic gesendet werden; „der Token verlässt niemals das Gerät“ wäre deshalb falsch.
-- Die Architektur schützt nicht gegen einen bereits kompromittierten Mac, Benutzeraccount, System-Proxy oder Claude-Code-Keychain-Eintrag.
-- Interne Verteilung sollte mit der zuständigen IT-/Security-Richtlinie abgestimmt werden.
+- The app uses the `/api/oauth/usage` endpoint that Claude Code relies on. It is not a documented public Anthropic API and may change or be blocked.
+- An ad-hoc-signed app has no Apple-confirmed publisher identity and no notarization.
+- The access token must be sent to Anthropic over TLS for the authenticated fetch — so "the token never leaves the device" would be false.
+- The design does not protect against an already-compromised Mac, user account, system proxy, or Claude Code Keychain item.
+- Coordinate internal distribution with your IT/security policy.
