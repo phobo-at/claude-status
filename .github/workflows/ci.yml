@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Security and tests (arm64)
+    runs-on: macos-26
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Static security policy
+        run: ./Scripts/security-check.sh
+
+      - name: Unit tests
+        run: |
+          xcodebuild \
+            -project ClaudeStatus.xcodeproj \
+            -scheme ClaudeStatus \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath /tmp/ClaudeStatusDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Unnotarized internal package
+        run: ./Scripts/build-shareable.sh

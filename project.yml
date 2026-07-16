@@ -1,0 +1,47 @@
+name: ClaudeStatus
+options:
+  bundleIdPrefix: io.github.phobo-at
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CURRENT_PROJECT_VERSION: "5"
+    MARKETING_VERSION: "0.2.2"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  ClaudeStatus:
+    type: application
+    platform: macOS
+    sources:
+      - path: ClaudeStatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.phobo-at.ClaudeStatus
+        PRODUCT_NAME: ClaudeStatus
+        PRODUCT_MODULE_NAME: ClaudeStatus
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: ClaudeStatus/ClaudeStatus.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Claude Status
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        SWIFT_STRICT_CONCURRENCY: complete
+    scheme:
+      testTargets:
+        - ClaudeStatusTests
+  ClaudeStatusTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ClaudeStatusTests
+    dependencies:
+      - target: ClaudeStatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.phobo-at.ClaudeStatusTests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: complete
