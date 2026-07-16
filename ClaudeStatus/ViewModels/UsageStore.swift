@@ -21,7 +21,13 @@ final class UsageStore: ObservableObject {
     @Published private(set) var state: UsageDisplayState = .disconnected
     @Published private(set) var isRefreshing = false
     @Published private(set) var isConnectionAuthorized: Bool
-    @Published private(set) var nextRefreshAllowedAt: Date?
+    /// Cool-down demanded by Anthropic via `Retry-After`. Binding for every caller:
+    /// an explicit user action must not hammer a rate-limited endpoint either.
+    @Published private(set) var retryAfterUntil: Date?
+    /// Backoff we impose on ourselves after transient failures. It throttles only the
+    /// automatic refresh; an explicit user action bypasses it, so a user who just fixed
+    /// their network is never locked out of the refresh button.
+    @Published private(set) var automaticBackoffUntil: Date?
 
     private let credentialProvider: any CredentialProviding
     private let usageClient: any UsageFetching
@@ -62,10 +68,10 @@ final class UsageStore: ObservableObject {
         guard !isRefreshing, isConnectionAuthorized else {
             return false
         }
-        guard let nextRefreshAllowedAt else {
+        guard let retryAfterUntil else {
             return true
         }
-        return nextRefreshAllowedAt <= now()
+        return retryAfterUntil <= now()
     }
 
     var isStale: Bool {
@@ -147,11 +153,16 @@ final class UsageStore: ObservableObject {
         }
 
         let currentDate = now()
-        if let nextRefreshAllowedAt, nextRefreshAllowedAt > currentDate {
+        if let retryAfterUntil, retryAfterUntil > currentDate {
             return
         }
-        if !force, let lastAttemptAt, currentDate.timeIntervalSince(lastAttemptAt) < 10 {
-            return
+        if !force {
+            if let automaticBackoffUntil, automaticBackoffUntil > currentDate {
+                return
+            }
+            if let lastAttemptAt, currentDate.timeIntervalSince(lastAttemptAt) < 10 {
+                return
+            }
         }
 
         isRefreshing = true
@@ -194,7 +205,8 @@ final class UsageStore: ObservableObject {
         snapshot = newSnapshot
         state = .current
         consecutiveFailures = 0
-        nextRefreshAllowedAt = nil
+        retryAfterUntil = nil
+        automaticBackoffUntil = nil
         await cache.save(newSnapshot)
     }
 
@@ -211,6 +223,8 @@ final class UsageStore: ObservableObject {
              UsageClientError.unauthorized:
             activeCredential = nil
             state = .authenticationRequired(error.localizedDescription)
+        case let UsageClientError.rateLimited(retryAfter):
+            registerTransientFailure(error: error, retryAfter: retryAfter)
         default:
             registerTransientFailure(error: error)
         }
@@ -234,9 +248,13 @@ final class UsageStore: ObservableObject {
     private func registerTransientFailure(error: any Error, retryAfter: TimeInterval? = nil) {
         let backoff: [TimeInterval] = [60, 120, 300, 900]
         let index = min(consecutiveFailures, backoff.count - 1)
-        let delay = max(1, retryAfter ?? backoff[index])
         consecutiveFailures += 1
-        nextRefreshAllowedAt = now().addingTimeInterval(delay)
+
+        let currentDate = now()
+        if let retryAfter {
+            retryAfterUntil = currentDate.addingTimeInterval(max(1, retryAfter))
+        }
+        automaticBackoffUntil = currentDate.addingTimeInterval(backoff[index])
 
         let message = error.localizedDescription
         if snapshot != nil {

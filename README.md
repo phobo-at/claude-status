@@ -16,7 +16,7 @@ A small native macOS menu-bar app that shows your personal Claude / Claude Code 
 - App Sandbox and Hardened Runtime are on; the sandbox holds only the outgoing-network entitlement.
 - The only thing stored locally is the last usage snapshot (file `0600`, directory `0700`).
 - No analytics, telemetry, ads, third-party SDKs, or external Swift packages.
-- Automatic polling runs at most every five minutes. Opening the popover or waking the Mac fetches only when the snapshot is at least two minutes old. An Anthropic `Retry-After` blocks automatic and manual requests until it expires.
+- Automatic polling runs at most every five minutes. Opening the popover or waking the Mac fetches only when the snapshot is at least two minutes old. An Anthropic `Retry-After` blocks automatic and manual requests until it expires. The app's own failure backoff throttles only the automatic refresh — an explicit retry always goes through, so a network blip never locks you out of the refresh button.
 
 Full details and limits are in [SECURITY.md](SECURITY.md) and [PRIVACY.md](PRIVACY.md).
 
@@ -95,7 +95,9 @@ It publishes to `dist/release/` only after successful signing, notarization, sta
 
 `dist/`, `.build/`, Xcode user data, certificates, and env files are ignored. Tests and `./Scripts/security-check.sh` should pass before every push; CI re-runs them on an arm64 macOS runner with the checkout action pinned to a fixed commit and no persisted git credentials. For releases, always publish together: the `UNNOTARIZED` ZIP, its `.sha256`, a link to this install/security info, and the matching source state or git tag. Enable "Private vulnerability reporting" on the repo, and never paste tokens, Keychain dumps, or personal data into public issues.
 
-The repo currently has no `LICENSE`: the code is publicly viewable but not automatically open source, and third parties get no blanket permission to use or redistribute it. Choose a license deliberately before any real open-source release.
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). Note §6: the license grants no trademark rights. "Claude" and "Anthropic" are trademarks of Anthropic — this project is independent and unofficial, and the license conveys no permission to use those marks.
 
 ## Limitations
 

@@ -48,7 +48,47 @@ final class UsageStoreTests: XCTestCase {
         guard case .stale = store.state else {
             return XCTFail("Expected stale state, got \(store.state)")
         }
-        XCTAssertNotNil(store.nextRefreshAllowedAt)
+        XCTAssertNotNil(store.automaticBackoffUntil)
+        XCTAssertNil(store.retryAfterUntil)
+        // A self-imposed backoff must never disable the user's refresh button.
+        XCTAssertTrue(store.canRefresh)
+    }
+
+    func testExplicitRefreshBypassesSelfImposedBackoffButAutomaticOneDoesNot() async {
+        let defaults = makeDefaults(connected: true)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let snapshot = Self.snapshot(utilization: 10)
+        let usageClient = ScriptedUsageClient(results: [
+            .failure(.serverError(503)),
+            .success(snapshot),
+        ])
+        let store = UsageStore(
+            credentialProvider: SuccessfulCredentialProvider(),
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        await store.start()
+
+        var requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertNotNil(store.automaticBackoffUntil)
+        XCTAssertNil(store.retryAfterUntil)
+        XCTAssertTrue(store.canRefresh)
+
+        // Automatic triggers stay throttled while the backoff window is open.
+        await store.popoverOpened()
+        requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 1)
+
+        // An explicit user action retries immediately, without waiting out the backoff.
+        await store.manualRefresh()
+        requestCount = await usageClient.requestCount
+        XCTAssertEqual(requestCount, 2)
+        XCTAssertEqual(store.state, .current)
+        XCTAssertNil(store.automaticBackoffUntil)
     }
 
     func testUnauthorizedUsageRequiresLoginWithoutExecutingAnotherProgram() async {
@@ -191,7 +231,7 @@ final class UsageStoreTests: XCTestCase {
         await store.connect()
         await store.manualRefresh()
 
-        XCTAssertEqual(store.nextRefreshAllowedAt, Date(timeIntervalSince1970: 1_600))
+        XCTAssertEqual(store.retryAfterUntil, Date(timeIntervalSince1970: 1_600))
         XCTAssertFalse(store.canRefresh)
 
         await store.manualRefresh()
@@ -208,7 +248,7 @@ final class UsageStoreTests: XCTestCase {
         await store.manualRefresh()
         requestCount = await usageClient.requestCount
         XCTAssertEqual(requestCount, 3)
-        XCTAssertNil(store.nextRefreshAllowedAt)
+        XCTAssertNil(store.retryAfterUntil)
         XCTAssertEqual(store.state, .current)
     }
 
