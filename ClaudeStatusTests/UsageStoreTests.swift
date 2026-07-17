@@ -165,7 +165,102 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(requestCount, 2)
     }
 
-    func testPopoverRefreshesOnlyWhenSnapshotIsAtLeastTwoMinutesOld() async {
+    func testRotatedTokenIsReReadFromKeychainWithoutUserAction() async {
+        let defaults = makeDefaults(connected: true)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let credentials = RotatingCredentialProvider(tokens: ["token-1", "token-2"])
+        let usageClient = TokenValidatingUsageClient(
+            validToken: "token-1",
+            snapshot: Self.snapshot(utilization: 10)
+        )
+        let store = UsageStore(
+            credentialProvider: credentials,
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        await store.start()
+        XCTAssertEqual(store.state, .current)
+        var credentialReads = await credentials.requestCount
+        XCTAssertEqual(credentialReads, 1)
+
+        // Claude Code refreshes its OAuth token: the token this app is holding stops
+        // working, and the keychain now hands out a new one.
+        await usageClient.rotate(to: "token-2")
+        clock.advance(by: UsageStore.minimumAutomaticRefreshAge)
+
+        await store.popoverOpened()
+
+        credentialReads = await credentials.requestCount
+        XCTAssertEqual(credentialReads, 2)
+        XCTAssertEqual(store.state, .current)
+    }
+
+    func testUnauthorizedAfterKeychainReReadRequiresExplicitRetry() async {
+        let defaults = makeDefaults(connected: true)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let credentials = RotatingCredentialProvider(tokens: ["token-1", "token-2"])
+        let usageClient = TokenValidatingUsageClient(
+            validToken: "token-1",
+            snapshot: Self.snapshot(utilization: 10)
+        )
+        let store = UsageStore(
+            credentialProvider: credentials,
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        await store.start()
+
+        // Nothing the keychain hands out is accepted any more: the re-read must happen
+        // exactly once and then stop, rather than loop on the keychain.
+        await usageClient.rotate(to: "token-nobody-has")
+        clock.advance(by: UsageStore.minimumAutomaticRefreshAge)
+        await store.popoverOpened()
+
+        var credentialReads = await credentials.requestCount
+        XCTAssertEqual(credentialReads, 2)
+        guard case .authenticationRequired = store.state else {
+            return XCTFail("Expected authenticationRequired, got \(store.state)")
+        }
+
+        clock.advance(by: UsageStore.minimumAutomaticRefreshAge)
+        await store.popoverOpened()
+
+        credentialReads = await credentials.requestCount
+        XCTAssertEqual(credentialReads, 2)
+    }
+
+    func testActiveRetryAfterIsExposedOnlyWhileTheCoolDownRuns() async {
+        let defaults = makeDefaults()
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let usageClient = ScriptedUsageClient(results: [
+            .success(Self.snapshot(utilization: 10)),
+            .failure(.rateLimited(retryAfter: 1_805)),
+        ])
+        let store = UsageStore(
+            credentialProvider: SuccessfulCredentialProvider(),
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        await store.connect()
+        XCTAssertNil(store.activeRetryAfter)
+
+        await store.manualRefresh()
+        XCTAssertEqual(store.activeRetryAfter, Date(timeIntervalSince1970: 2_805))
+
+        clock.advance(by: 1_805)
+        XCTAssertNil(store.activeRetryAfter)
+    }
+
+    func testPopoverRefreshesOnlyWhenSnapshotIsOlderThanTheMinimumAge() async {
         let defaults = makeDefaults()
         let clock = TestClock(Date(timeIntervalSince1970: 1_000))
         let usageClient = CountingUsageClient(snapshot: Self.snapshot(utilization: 10))
@@ -301,6 +396,48 @@ private actor CountingCredentialProvider: CredentialProviding {
     func credential() async throws -> ClaudeCredential {
         requestCount += 1
         return ClaudeCredential(accessToken: "token", planName: "Max")
+    }
+}
+
+/// Hands out a different token on each read, the way the keychain does once Claude Code
+/// has refreshed its OAuth token.
+private actor RotatingCredentialProvider: CredentialProviding {
+    private(set) var requestCount = 0
+    private let tokens: [String]
+
+    init(tokens: [String]) {
+        self.tokens = tokens
+    }
+
+    func credential() async throws -> ClaudeCredential {
+        let token = tokens[min(requestCount, tokens.count - 1)]
+        requestCount += 1
+        return ClaudeCredential(accessToken: token, planName: "Max")
+    }
+}
+
+/// Accepts exactly one token, so a token the app is still holding after a rotation gets
+/// the same 401 Anthropic would send.
+private actor TokenValidatingUsageClient: UsageFetching {
+    private(set) var requestCount = 0
+    private var validToken: String
+    private let snapshot: UsageSnapshot
+
+    init(validToken: String, snapshot: UsageSnapshot) {
+        self.validToken = validToken
+        self.snapshot = snapshot
+    }
+
+    func rotate(to token: String) {
+        validToken = token
+    }
+
+    func fetchUsage(accessToken: String) async throws -> UsageSnapshot {
+        requestCount += 1
+        guard accessToken == validToken else {
+            throw UsageClientError.unauthorized
+        }
+        return snapshot
     }
 }
 

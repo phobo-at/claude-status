@@ -125,8 +125,11 @@ struct StatusPopoverView: View {
     private var statusMessage: some View {
         switch store.state {
         case let .stale(message):
-            compactBanner(message, color: .orange, symbol: "clock.arrow.circlepath")
-                .padding(.top, 14)
+            VStack(alignment: .leading, spacing: 5) {
+                compactBanner(message, color: .orange, symbol: "clock.arrow.circlepath")
+                retryAfterHint
+            }
+            .padding(.top, 14)
         case let .authenticationRequired(message):
             VStack(alignment: .leading, spacing: 9) {
                 compactBanner(message, color: .orange, symbol: "person.crop.circle.badge.exclamationmark")
@@ -183,7 +186,10 @@ struct StatusPopoverView: View {
 
     private func errorView(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            compactBanner(message, color: .red, symbol: "exclamationmark.triangle.fill")
+            VStack(alignment: .leading, spacing: 5) {
+                compactBanner(message, color: .red, symbol: "exclamationmark.triangle.fill")
+                retryAfterHint
+            }
             Button("Erneut versuchen") {
                 Task {
                     await store.retryAuthentication()
@@ -191,6 +197,18 @@ struct StatusPopoverView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(store.isRefreshing)
+        }
+    }
+
+    /// Anthropic's cool-down blocks the refresh button too, so name the time it lifts —
+    /// a greyed-out button with no explanation reads as a broken app.
+    @ViewBuilder
+    private var retryAfterHint: some View {
+        if let retryAfterUntil = store.activeRetryAfter {
+            Text(UsageFormatting.retryAfterText(until: retryAfterUntil))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 22)
         }
     }
 

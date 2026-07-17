@@ -13,8 +13,13 @@ enum UsageDisplayState: Equatable, Sendable {
 
 @MainActor
 final class UsageStore: ObservableObject {
-    static let automaticRefreshInterval: TimeInterval = 5 * 60
-    static let minimumAutomaticRefreshAge: TimeInterval = 2 * 60
+    /// Anthropic rate-limits `/api/oauth/usage` per account and answers a 429 with a
+    /// half-hour `Retry-After`. Claude Code polls the same endpoint on the same account,
+    /// so the budget is shared and the app has to spend it sparingly. Every window this
+    /// app shows moves over hours or days; polling faster than this buys nothing and
+    /// costs the account its quota.
+    static let automaticRefreshInterval: TimeInterval = 15 * 60
+    static let minimumAutomaticRefreshAge: TimeInterval = 10 * 60
 
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var planName: String?
@@ -68,10 +73,17 @@ final class UsageStore: ObservableObject {
         guard !isRefreshing, isConnectionAuthorized else {
             return false
         }
-        guard let retryAfterUntil else {
-            return true
+        return activeRetryAfter == nil
+    }
+
+    /// When Anthropic's cool-down is still running, the time it lifts — otherwise nil.
+    /// Every refresh is blocked until then, including the button, so the UI has to say so
+    /// rather than leave the user looking at a dead control.
+    var activeRetryAfter: Date? {
+        guard let retryAfterUntil, retryAfterUntil > now() else {
+            return nil
         }
-        return retryAfterUntil <= now()
+        return retryAfterUntil
     }
 
     var isStale: Bool {
@@ -172,24 +184,36 @@ final class UsageStore: ObservableObject {
         }
 
         do {
-            let credential: ClaudeCredential
-            if let activeCredential {
-                credential = activeCredential
-            } else {
-                credential = try await credentialProvider.credential()
-                activeCredential = credential
-            }
-            if let credentialPlanName = credential.planName {
-                planName = credentialPlanName
-            }
-            let fetchedSnapshot = try await usageClient.fetchUsage(
-                accessToken: credential.accessToken
-            )
-            await accept(fetchedSnapshot)
+            await accept(try await fetchUsage())
         } catch {
             handleRefreshError(error)
         }
         isRefreshing = false
+    }
+
+    /// Fetches with the in-memory token and, if Claude Code rotated it out from under us,
+    /// re-reads the keychain exactly once and retries with the new one.
+    ///
+    /// The re-read costs the user nothing: the keychain grant is bound to the app's code
+    /// identity, and rewriting the item's data — which is all a rotation does — leaves the
+    /// grant intact, so this never raises a dialog. A 401 on a *freshly* read token is a
+    /// real login problem, so it is surfaced rather than retried; that bounds this at two
+    /// requests and one keychain read per refresh.
+    private func fetchUsage() async throws -> UsageSnapshot {
+        if let activeCredential {
+            do {
+                return try await usageClient.fetchUsage(accessToken: activeCredential.accessToken)
+            } catch UsageClientError.unauthorized {
+                self.activeCredential = nil
+            }
+        }
+
+        let credential = try await credentialProvider.credential()
+        activeCredential = credential
+        if let credentialPlanName = credential.planName {
+            planName = credentialPlanName
+        }
+        return try await usageClient.fetchUsage(accessToken: credential.accessToken)
     }
 
     private func refreshAutomaticallyIfStale() async {

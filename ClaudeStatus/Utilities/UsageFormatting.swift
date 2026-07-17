@@ -44,6 +44,20 @@ enum UsageFormatting {
         return "Zurücksetzung \(formatter.string(from: resetsAt))"
     }
 
+    /// Absolute time rather than a countdown: the popover does not tick, so "in 29 Min."
+    /// would be a lie the moment it is drawn.
+    static func retryAfterText(
+        until: Date,
+        timeZone: TimeZone = .current
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = germanLocale
+        formatter.timeZone = timeZone
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return "Neuer Versuch um \(formatter.string(from: until))"
+    }
+
     static func updatedText(
         fetchedAt: Date,
         now: Date = Date(),

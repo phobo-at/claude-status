@@ -9,14 +9,14 @@ A small native macOS menu-bar app that shows your personal Claude / Claude Code 
 
 - Uses only your own existing Claude Code login in the local macOS Keychain.
 - Reads exactly the generic-password item `Claude Code-credentials` for the current macOS user — no fuzzy matching, no legacy fallback.
-- The access token is read once per app launch, kept in memory only, and never stored, logged, copied to the clipboard, or shared. After a `401` the automatic fetch stops until you explicitly retry.
+- The access token is read once per app launch, kept in memory only, and never stored, logged, copied to the clipboard, or shared. Claude Code refreshes that login roughly daily, so a token rejected with a `401` costs exactly one further Keychain read and one retry; if the freshly read token is rejected too, the automatic fetch stops until you explicitly retry.
 - The token is sent only as a Bearer token over HTTPS to `https://api.anthropic.com/api/oauth/usage` — technically required to fetch your usage.
 - HTTP redirects are rejected; cookies, URL cache, and persistent network storage are disabled.
 - The app never launches a shell or any other program. After an expired login you run `claude auth login` yourself.
 - App Sandbox and Hardened Runtime are on; the sandbox holds only the outgoing-network entitlement.
 - The only thing stored locally is the last usage snapshot (file `0600`, directory `0700`).
 - No analytics, telemetry, ads, third-party SDKs, or external Swift packages.
-- Automatic polling runs at most every five minutes. Opening the popover or waking the Mac fetches only when the snapshot is at least two minutes old. An Anthropic `Retry-After` blocks automatic and manual requests until it expires. The app's own failure backoff throttles only the automatic refresh — an explicit retry always goes through, so a network blip never locks you out of the refresh button.
+- Automatic polling runs at most every fifteen minutes. Opening the popover or waking the Mac fetches only when the snapshot is at least ten minutes old. Anthropic rate-limits the usage endpoint per account, and Claude Code draws on the same budget, so the app deliberately spends it sparingly. An Anthropic `Retry-After` blocks automatic and manual requests until it expires; the popover names the time it lifts. The app's own failure backoff throttles only the automatic refresh — an explicit retry always goes through, so a network blip never locks you out of the refresh button.
 
 Full details and limits are in [SECURITY.md](SECURITY.md) and [PRIVACY.md](PRIVACY.md).
 
@@ -60,7 +60,7 @@ Then:
 4. Click **Mit Claude Code verbinden** in the menu-bar popover.
 5. Review the Keychain dialog carefully and allow access. For an unchanged, verified build you may choose "Always Allow".
 
-Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the app has no stable Developer ID, macOS may ask for Keychain access again after an update; within a running process the Keychain item is read only once.
+Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the app has no stable Developer ID, every build has a new code identity, so macOS asks for Keychain access once per installed update. It does not ask again in between: the grant survives Claude Code rewriting the login item, so the app re-reads a rotated token without a dialog.
 
 ## Develop & test locally
 

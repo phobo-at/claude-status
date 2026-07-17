@@ -35,6 +35,16 @@ final class UsageFormattingTests: XCTestCase {
         XCTAssertTrue(text.contains("00:59"))
     }
 
+    func testRetryAfterFormattingUsesRequestedTimeZone() throws {
+        let retryAt = try XCTUnwrap(FlexibleISO8601Date.parse("2026-07-17T06:47:00Z"))
+        let text = UsageFormatting.retryAfterText(
+            until: retryAt,
+            timeZone: TimeZone(identifier: "Europe/Vienna")!
+        )
+
+        XCTAssertEqual(text, "Neuer Versuch um 08:47")
+    }
+
     func testWarningThresholds() {
         XCTAssertEqual(UsageWarningLevel(utilization: 79.9), .normal)
         XCTAssertEqual(UsageWarningLevel(utilization: 80), .elevated)
