@@ -19,13 +19,13 @@ enum CredentialError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .notFound:
-            "Kein Claude-Code-Login gefunden. Bitte zuerst „claude auth login“ ausführen."
+            String(localized: "No Claude Code login found. Run “claude auth login” first.")
         case .accessDenied:
-            "Der Zugriff auf den Claude-Code-Login wurde nicht erlaubt."
+            String(localized: "Access to the Claude Code login was denied.")
         case .invalidPayload:
-            "Der gespeicherte Claude-Code-Login hat ein unbekanntes Format."
+            String(localized: "The stored Claude Code login has an unknown format.")
         case let .keychain(status):
-            "Der macOS-Schlüsselbund konnte nicht gelesen werden (Fehler \(status))."
+            String(localized: "The macOS Keychain could not be read (error \(status)).")
         }
     }
 }

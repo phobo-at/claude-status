@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Claude Status is a native macOS **menu-bar app** (SwiftUI `MenuBarExtra`, `LSUIElement` — no Dock icon) that shows the signed-in user's personal Claude / Claude Code usage windows. Apple Silicon only, macOS 14+, Swift 6 with `SWIFT_STRICT_CONCURRENCY: complete`. No external Swift packages, no telemetry.
 
-User-facing strings are **German** (`de_AT` locale); keep new UI copy German to match.
+User-facing strings are **localized, English-source**: every literal in the code is English and lives in `ClaudeStatus/Resources/Localizable.xcstrings`, with German as a translation. macOS picks the language from the user's preferences — that needs no code, but it does need the language listed under `knownRegions` in `project.yml`. New UI copy therefore goes in English **and** gets a German translation in the catalog; see the localization rules below.
 
 ## Commands
 
@@ -55,7 +55,7 @@ Single data flow, protocol-injected for testability. `UsageStore` is the one sou
 - **`Models/UsageModels.swift`** — `UsagePayload` (wire format: `five_hour`, `seven_day`, `seven_day_sonnet`, `seven_day_opus`) → `UsageSnapshot` (domain: `currentSession`, `weeklyAllModels`, `weeklySonnet`, `weeklyOpus`). `LimitWindow` clamps utilization to 0–100; dates parsed via `FlexibleISO8601Date` (with/without fractional seconds).
 - **`Services/SnapshotCache.swift`** — `FileSnapshotCache` actor persists the last snapshot to `Application Support/ClaudeStatus/usage-cache.json` (dir `0700`, file `0600`). Only cached artifact; write failures are swallowed (network is authoritative).
 - **`Views/`** — `MenuBarLabel` (progress ring + %), `StatusPopoverView` (the `.window`-style popover), `UsageRowView`. `App/ClaudeStatusApp.swift` wires `MenuBarExtra` and drives `store.start()` / `store.popoverOpened()`.
-- **`Utilities/UsageFormatting.swift`** — pure `de_AT` string builders (percentage, session/weekly reset countdowns, "updated N minutes ago"). All user-facing German copy funnels through here; keep it deterministic (takes injectable `now`/`calendar`/`timeZone`) so `UsageFormattingTests` can pin it.
+- **`Utilities/UsageFormatting.swift`** — the string builders (percentage, session/weekly reset countdowns, "updated N minutes ago", the `Retry-After` hint). All localized copy that is not a plain SwiftUI `Text` funnels through here. Keep it deterministic: it takes injectable `now`/`calendar`/`timeZone`/`locale`/`bundle` so `UsageFormattingTests` can pin every one. `locale` and `bundle` are **not** interchangeable — see below.
 
 State transitions worth knowing (all verified by `UsageStoreTests`):
 
@@ -63,6 +63,23 @@ State transitions worth knowing (all verified by `UsageStoreTests`):
 - **First-run consent** is gated behind the `hasAuthorizedClaudeCodeConnection` UserDefaults flag — the app starts `disconnected` and never touches the keychain until the user presses "connect".
 
 Endpoint budget: Anthropic rate-limits `/api/oauth/usage` **per account** (429 + a `Retry-After` of ~1800s), and Claude Code polls the same endpoint on the same account, so the budget is shared. That is why `automaticRefreshInterval`/`minimumAutomaticRefreshAge` are deliberately slow — every window the app displays moves over hours or days. When `retryAfterUntil` is armed the refresh button is disabled, so the popover **must** keep showing `store.activeRetryAfter` ("Neuer Versuch um HH:mm"); a dead button with no explanation reads as a broken app.
+
+## Localization
+
+Source strings are **English**, in `ClaudeStatus/Resources/Localizable.xcstrings`; German is a translation. `project.yml` sets `developmentLanguage: en` and lists `knownRegions: [en, de]`. Only `de.lproj` ships — English *is* the key, so any system language without an `.lproj` falls back to `CFBundleDevelopmentRegion` (en) and renders the source strings. Language selection is macOS's job; the app has no language setting and no code for it.
+
+Adding user-facing copy:
+
+1. Write the literal in English in the code. SwiftUI `Text`/`Button`/`Label`/`.help` take `LocalizedStringKey` and localize on their own; anything returning a plain `String` (error `errorDescription`, `UsageFormatting`) must use `String(localized:)` explicitly.
+2. Add the key **and** a German translation to `Localizable.xcstrings`.
+3. Add the key to the list in `LocalizationTests`.
+
+**`locale:` and `bundle:` are not interchangeable — this is the trap.** In `String(localized:bundle:locale:)`, the **`bundle` selects the language**; `locale:` only formats interpolated values (numbers, dates). `String(localized: "…", locale: Locale(identifier: "en_US"))` on a German Mac still returns **German**. So:
+
+- `UsageFormatting` takes both: `bundle` for the language, `locale` for the clock and the weekday. Dates must follow the user's *locale*, not the UI language — the formatters used to hardcode `de_AT`, which gave every user Austrian dates.
+- Tests must pin `bundle:` to `de.lproj` explicitly. Relying on the ambient language makes the suite pass locally (German Mac) and fail on CI (English runner), or vice versa.
+
+A key the code asks for that the catalog lacks **fails silently**: the lookup returns the English key, so nothing crashes and a German user just sees English. `LocalizationTests` is the only guard — it asserts every key has a German translation, that the translation is not verbatim English, and that placeholder specifiers (`%lld`, `%@`, `%d`) survive translation. `UsageFormattingTests` covers the other half by asserting the German round-trip through the real code paths, which is what proves the key the code *generates* matches the key in the catalog.
 
 ## Security invariants (enforced by `Scripts/security-check.sh`)
 

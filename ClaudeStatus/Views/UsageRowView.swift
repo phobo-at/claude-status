@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct UsageRowView: View {
-    let title: String
+    let title: LocalizedStringKey
     let window: LimitWindow
     let resetStyle: ResetStyle
 
@@ -24,10 +24,10 @@ struct UsageRowView: View {
                 ProgressView(value: window.utilization, total: 100)
                     .progressViewStyle(.linear)
                     .tint(progressColor)
-                    .accessibilityLabel("\(title) Nutzung")
-                    .accessibilityValue("\(UsageFormatting.percentage(window.utilization)) verwendet")
+                    .accessibilityLabel(title)
+                    .accessibilityValue("\(UsageFormatting.percentage(window.utilization)) used")
 
-                Text("\(UsageFormatting.percentage(window.utilization)) verwendet")
+                Text("\(UsageFormatting.percentage(window.utilization)) used")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()

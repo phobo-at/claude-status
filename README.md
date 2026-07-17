@@ -2,6 +2,10 @@
 
 A small native macOS menu-bar app that shows your personal Claude / Claude Code usage windows. Apple Silicon only, macOS 14 or newer. Bundle identifier: `io.github.phobo-at.ClaudeStatus`.
 
+<img src="docs/screenshot.png" alt="The Claude Status popover in the macOS menu bar, showing the current session at 89 % used with an orange bar, and the weekly all-models limit at 32 %." width="400">
+
+The menu bar shows the current session's utilization; the popover breaks it down by window. English and German, following your macOS language setting.
+
 > [!IMPORTANT]
 > Claude Status is an independent, unofficial project and is not affiliated with Anthropic. The internal builds are deliberately **not signed with an Apple Developer ID and not notarized**, so macOS cannot confirm the publisher and shows a Gatekeeper warning on first launch. Source code, sandbox, and data flow are separate security concerns from that.
 
@@ -57,7 +61,7 @@ Then:
 1. Unzip and drag `ClaudeStatus.app` to `/Applications`.
 2. Launch it via right-click → **Open** in Finder.
 3. If macOS still blocks it: **System Settings → Privacy & Security → Open Anyway**.
-4. Click **Mit Claude Code verbinden** in the menu-bar popover.
+4. Click **Connect to Claude Code** (German: **Mit Claude Code verbinden**) in the menu-bar popover.
 5. Review the Keychain dialog carefully and allow access. For an unchanged, verified build you may choose "Always Allow".
 
 Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the app has no stable Developer ID, every build has a new code identity, so macOS asks for Keychain access once per installed update. It does not ask again in between: the grant survives Claude Code rewriting the login item, so the app re-reads a rotated token without a dialog.

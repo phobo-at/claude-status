@@ -16,9 +16,9 @@ struct MenuBarLabel: View {
 
     private var accessibilityLabel: String {
         if let utilization = store.currentUtilization {
-            return "Claude-Nutzung, aktuelle Sitzung: \(UsageFormatting.percentage(utilization)) verwendet"
+            return String(localized: "Claude usage, current session: \(UsageFormatting.percentage(utilization)) used")
         }
-        return "Claude-Nutzung nicht verfügbar"
+        return String(localized: "Claude usage unavailable")
     }
 }
 

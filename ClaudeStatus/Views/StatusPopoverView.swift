@@ -27,7 +27,7 @@ struct StatusPopoverView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text("Plan-Nutzungslimits")
+            Text("Plan usage limits")
                 .font(.system(size: 16, weight: .semibold))
             if let planName = store.planName {
                 Text(planName)
@@ -65,10 +65,10 @@ struct StatusPopoverView: View {
 
     private var connectionView: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Mit Claude Code verbinden", systemImage: "key.fill")
+            Label("Connect to Claude Code", systemImage: "key.fill")
                 .font(.system(size: 14, weight: .semibold))
 
-            Text("Claude Status liest nach deiner Freigabe den vorhandenen Claude-Code-Login einmal pro App-Start aus dem macOS-Schlüsselbund. Danach bleibt er nur im Arbeitsspeicher und wird weder gespeichert noch protokolliert.")
+            Text("After you allow it, Claude Status reads your existing Claude Code login from the macOS Keychain once per app launch. It then stays in memory only, and is never stored or logged.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -83,7 +83,7 @@ struct StatusPopoverView: View {
                         .controlSize(.small)
                         .frame(maxWidth: .infinity)
                 } else {
-                    Text("Mit Claude Code verbinden")
+                    Text("Connect to Claude Code")
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -95,25 +95,25 @@ struct StatusPopoverView: View {
     private func limitsView(_ snapshot: UsageSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if let currentSession = snapshot.currentSession {
-                UsageRowView(title: "Aktuelle Sitzung", window: currentSession, resetStyle: .relative)
+                UsageRowView(title: "Current session", window: currentSession, resetStyle: .relative)
             }
 
             if let weeklyAllModels = snapshot.weeklyAllModels {
-                Text("Wöchentliche Limits")
+                Text("Weekly limits")
                     .font(.system(size: 14, weight: .semibold))
                     .padding(.top, snapshot.currentSession == nil ? 0 : 22)
                     .padding(.bottom, 12)
 
-                UsageRowView(title: "Alle Modelle", window: weeklyAllModels, resetStyle: .weekly)
+                UsageRowView(title: "All models", window: weeklyAllModels, resetStyle: .weekly)
             }
 
             if let weeklySonnet = snapshot.weeklySonnet {
-                UsageRowView(title: "Nur Sonnet", window: weeklySonnet, resetStyle: .weekly)
+                UsageRowView(title: "Sonnet only", window: weeklySonnet, resetStyle: .weekly)
                     .padding(.top, 16)
             }
 
             if let weeklyOpus = snapshot.weeklyOpus {
-                UsageRowView(title: "Nur Opus", window: weeklyOpus, resetStyle: .weekly)
+                UsageRowView(title: "Opus only", window: weeklyOpus, resetStyle: .weekly)
                     .padding(.top, 16)
             }
 
@@ -143,9 +143,9 @@ struct StatusPopoverView: View {
 
     private var authenticationView: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Claude-Anmeldung erforderlich", systemImage: "person.crop.circle.badge.exclamationmark")
+            Label("Claude sign-in required", systemImage: "person.crop.circle.badge.exclamationmark")
                 .font(.system(size: 14, weight: .semibold))
-            Text("Führe den folgenden Befehl in Terminal aus und prüfe die Verbindung danach erneut.")
+            Text("Run the following command in Terminal, then check the connection again.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             loginCommandButtons
@@ -154,14 +154,14 @@ struct StatusPopoverView: View {
 
     private var loginCommandButtons: some View {
         HStack(spacing: 8) {
-            Button(didCopyLoginCommand ? "Kopiert" : "claude auth login kopieren") {
+            Button(didCopyLoginCommand ? "Copied" : "Copy claude auth login") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString("claude auth login", forType: .string)
                 didCopyLoginCommand = true
             }
             .buttonStyle(.bordered)
 
-            Button("Erneut prüfen") {
+            Button("Check again") {
                 Task {
                     await store.retryAuthentication()
                 }
@@ -176,7 +176,7 @@ struct StatusPopoverView: View {
         HStack(spacing: 10) {
             ProgressView()
                 .controlSize(.small)
-            Text("Nutzung wird geladen …")
+            Text("Loading usage …")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
@@ -190,7 +190,7 @@ struct StatusPopoverView: View {
                 compactBanner(message, color: .red, symbol: "exclamationmark.triangle.fill")
                 retryAfterHint
             }
-            Button("Erneut versuchen") {
+            Button("Try again") {
                 Task {
                     await store.retryAuthentication()
                 }
@@ -237,7 +237,7 @@ struct StatusPopoverView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             } else {
-                Text("Noch nicht aktualisiert")
+                Text("Not updated yet")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -258,7 +258,7 @@ struct StatusPopoverView: View {
             }
             .buttonStyle(.plain)
             .disabled(!store.canRefresh)
-            .help("Nutzung aktualisieren")
+            .help("Refresh usage")
 
             Button {
                 NSApplication.shared.terminate(nil)
@@ -266,7 +266,7 @@ struct StatusPopoverView: View {
                 Image(systemName: "power")
             }
             .buttonStyle(.plain)
-            .help("Claude Status beenden")
+            .help("Quit Claude Status")
         }
         .padding(.vertical, 11)
     }

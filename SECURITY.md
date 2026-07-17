@@ -2,7 +2,7 @@
 
 ## Data flow
 
-1. Only after an explicit click on "Mit Claude Code verbinden" does the app query the local macOS Keychain for exactly one item: service `Claude Code-credentials`, account = current macOS username.
+1. Only after an explicit click on "Connect to Claude Code" ("Mit Claude Code verbinden" in German) does the app query the local macOS Keychain for exactly one item: service `Claude Code-credentials`, account = current macOS username.
 2. From the JSON, only `claudeAiOauth.accessToken` and optionally `subscriptionType` are decoded. Unknown or older structures are rejected and not searched recursively.
 3. The access token is read once per app process, reused in memory for the periodic fetches, and used as `Authorization: Bearer …`. Claude Code refreshes its own login roughly daily and rewrites that Keychain item, which invalidates the token held in memory. A token rejected with a `401` is therefore discarded and re-read from the Keychain exactly once, and the fetch is retried with the new one. If that freshly read token is rejected too, the reference is discarded and automatic fetches do not read the Keychain again until you explicitly retry — so any single refresh reads the Keychain at most once and makes at most two requests.
 4. The only destination address allowed in production code is `https://api.anthropic.com/api/oauth/usage`. Redirects are not followed.

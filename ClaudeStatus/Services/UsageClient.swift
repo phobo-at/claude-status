@@ -15,17 +15,17 @@ enum UsageClientError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .untrustedEndpoint:
-            "Die sichere Claude-Verbindung konnte nicht bestätigt werden."
+            String(localized: "The secure connection to Claude could not be verified.")
         case .unauthorized:
-            "Die Claude-Anmeldung ist abgelaufen."
+            String(localized: "Your Claude login has expired.")
         case .rateLimited:
-            "Claude hat zu viele Aktualisierungen erhalten."
+            String(localized: "Claude received too many refreshes.")
         case let .serverError(statusCode):
-            "Claude ist vorübergehend nicht erreichbar (HTTP \(statusCode))."
+            String(localized: "Claude is temporarily unavailable (HTTP \(statusCode)).")
         case .invalidResponse:
-            "Claude hat eine unerwartete Antwort gesendet."
+            String(localized: "Claude sent an unexpected response.")
         case .emptyPayload:
-            "Claude hat keine Nutzungslimits zurückgegeben."
+            String(localized: "Claude returned no usage limits.")
         }
     }
 }

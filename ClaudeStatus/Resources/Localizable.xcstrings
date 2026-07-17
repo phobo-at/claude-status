@@ -1,0 +1,457 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Access to the Claude Code login was denied." : {
+      "comment" : "Error shown when the user denies the Keychain dialog.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Zugriff auf den Claude-Code-Login wurde nicht erlaubt."
+          }
+        }
+      }
+    },
+    "After you allow it, Claude Status reads your existing Claude Code login from the macOS Keychain once per app launch. It then stays in memory only, and is never stored or logged." : {
+      "comment" : "First-run consent text on the connect screen.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Status liest nach deiner Freigabe den vorhandenen Claude-Code-Login einmal pro App-Start aus dem macOS-Schlüsselbund. Danach bleibt er nur im Arbeitsspeicher und wird weder gespeichert noch protokolliert."
+          }
+        }
+      }
+    },
+    "All models" : {
+      "comment" : "Title of the weekly all-models limit row.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Modelle"
+          }
+        }
+      }
+    },
+    "Check again" : {
+      "comment" : "Button that re-checks the login after the user ran claude auth login.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut prüfen"
+          }
+        }
+      }
+    },
+    "Claude is temporarily unavailable (HTTP %lld)." : {
+      "comment" : "Error for a 5xx response. Placeholder is the HTTP status code.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude ist vorübergehend nicht erreichbar (HTTP %lld)."
+          }
+        }
+      }
+    },
+    "Claude received too many refreshes." : {
+      "comment" : "Error for HTTP 429, the account-scoped rate limit.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude hat zu viele Aktualisierungen erhalten."
+          }
+        }
+      }
+    },
+    "Claude returned no usage limits." : {
+      "comment" : "Error when the payload decodes but carries no limit windows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude hat keine Nutzungslimits zurückgegeben."
+          }
+        }
+      }
+    },
+    "Claude sent an unexpected response." : {
+      "comment" : "Error for an undecodable or unexpected response.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude hat eine unerwartete Antwort gesendet."
+          }
+        }
+      }
+    },
+    "Claude sign-in required" : {
+      "comment" : "Headline when the login is missing or expired.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Anmeldung erforderlich"
+          }
+        }
+      }
+    },
+    "Claude usage unavailable" : {
+      "comment" : "Menu-bar accessibility label when no usage data is available.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Nutzung nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Claude usage, current session: %@ used" : {
+      "comment" : "Menu-bar accessibility label. Placeholder is a formatted percentage.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Nutzung, aktuelle Sitzung: %@ verwendet"
+          }
+        }
+      }
+    },
+    "Connect to Claude Code" : {
+      "comment" : "Label and button on the first-run connect screen.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Claude Code verbinden"
+          }
+        }
+      }
+    },
+    "Copied" : {
+      "comment" : "Confirmation shown on the copy button after copying.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopiert"
+          }
+        }
+      }
+    },
+    "Copy claude auth login" : {
+      "comment" : "Button that copies the literal command 'claude auth login' to the clipboard.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "claude auth login kopieren"
+          }
+        }
+      }
+    },
+    "Current session" : {
+      "comment" : "Title of the five-hour session limit row.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelle Sitzung"
+          }
+        }
+      }
+    },
+    "Just updated" : {
+      "comment" : "Footer text when the snapshot is less than a minute old.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerade aktualisiert"
+          }
+        }
+      }
+    },
+    "Loading usage …" : {
+      "comment" : "Shown while the first fetch is in flight.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzung wird geladen …"
+          }
+        }
+      }
+    },
+    "Next attempt at %@" : {
+      "comment" : "Shown while Anthropic's Retry-After cool-down blocks refreshing. Placeholder is a time of day.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer Versuch um %@"
+          }
+        }
+      }
+    },
+    "No Claude Code login found. Run “claude auth login” first." : {
+      "comment" : "Error when the Keychain item does not exist.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Claude-Code-Login gefunden. Bitte zuerst „claude auth login“ ausführen."
+          }
+        }
+      }
+    },
+    "Not updated yet" : {
+      "comment" : "Footer text when no snapshot exists yet.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht aktualisiert"
+          }
+        }
+      }
+    },
+    "Opus only" : {
+      "comment" : "Title of the weekly Opus-only limit row.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur Opus"
+          }
+        }
+      }
+    },
+    "Plan usage limits" : {
+      "comment" : "Popover headline, followed by the plan name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan-Nutzungslimits"
+          }
+        }
+      }
+    },
+    "Quit Claude Status" : {
+      "comment" : "Tooltip of the quit button.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Status beenden"
+          }
+        }
+      }
+    },
+    "Refresh usage" : {
+      "comment" : "Tooltip of the refresh button.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzung aktualisieren"
+          }
+        }
+      }
+    },
+    "Reset due" : {
+      "comment" : "Shown when the reset time has passed but no fresh data has arrived.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzung fällig"
+          }
+        }
+      }
+    },
+    "Reset time unknown" : {
+      "comment" : "Shown when the API returned a window without a reset timestamp.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzungszeit unbekannt"
+          }
+        }
+      }
+    },
+    "Resets %@" : {
+      "comment" : "Weekly reset. Placeholder is a formatted weekday and time, e.g. 'Tue, 00:59'.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzung %@"
+          }
+        }
+      }
+    },
+    "Resets in %lld hr %lld min" : {
+      "comment" : "Relative session reset with hours and minutes remaining.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzung in %lld Std. %lld Min."
+          }
+        }
+      }
+    },
+    "Resets in %lld min" : {
+      "comment" : "Relative session reset with less than an hour remaining.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzung in %lld Min."
+          }
+        }
+      }
+    },
+    "Run the following command in Terminal, then check the connection again." : {
+      "comment" : "Instruction above the claude auth login button.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Führe den folgenden Befehl in Terminal aus und prüfe die Verbindung danach erneut."
+          }
+        }
+      }
+    },
+    "Sonnet only" : {
+      "comment" : "Title of the weekly Sonnet-only limit row.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur Sonnet"
+          }
+        }
+      }
+    },
+    "The macOS Keychain could not be read (error %d)." : {
+      "comment" : "Error for an unexpected OSStatus. Placeholder is the raw status code.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der macOS-Schlüsselbund konnte nicht gelesen werden (Fehler %d)."
+          }
+        }
+      }
+    },
+    "The secure connection to Claude could not be verified." : {
+      "comment" : "Error when the endpoint allowlist or redirect check rejects the response.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die sichere Claude-Verbindung konnte nicht bestätigt werden."
+          }
+        }
+      }
+    },
+    "The stored Claude Code login has an unknown format." : {
+      "comment" : "Error when the Keychain payload does not decode.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der gespeicherte Claude-Code-Login hat ein unbekanntes Format."
+          }
+        }
+      }
+    },
+    "Try again" : {
+      "comment" : "Button on the generic error view.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut versuchen"
+          }
+        }
+      }
+    },
+    "Updated 1 minute ago" : {
+      "comment" : "Footer text when the snapshot is exactly one minute old.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vor 1 Minute aktualisiert"
+          }
+        }
+      }
+    },
+    "Updated %lld minutes ago" : {
+      "comment" : "Footer text for a snapshot between 2 and 59 minutes old.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vor %lld Minuten aktualisiert"
+          }
+        }
+      }
+    },
+    "Updated at %@" : {
+      "comment" : "Footer text for a snapshot an hour or more old. Placeholder is a time of day.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisiert um %@"
+          }
+        }
+      }
+    },
+    "%@ used" : {
+      "comment" : "Utilization label next to the progress bar. Placeholder is a formatted percentage.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ verwendet"
+          }
+        }
+      }
+    },
+    "Weekly limits" : {
+      "comment" : "Section headline above the weekly limit rows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wöchentliche Limits"
+          }
+        }
+      }
+    },
+    "Your Claude login has expired." : {
+      "comment" : "Error for HTTP 401/403.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Claude-Anmeldung ist abgelaufen."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
