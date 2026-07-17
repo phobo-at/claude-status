@@ -4,7 +4,7 @@ Claude Status processes only the data needed to display usage limits locally.
 
 ## Data processed
 
-- Claude Code OAuth access token: after user authorization, read once per app launch from the local macOS Keychain, reused in memory for further fetches, and used exclusively for the authenticated HTTPS request to Anthropic.
+- Claude Code OAuth access token: after user authorization, read once per app launch from the local macOS Keychain, reused in memory for further fetches, and used exclusively for the authenticated HTTPS request to Anthropic. It is read again only when Anthropic rejects the token held in memory — which happens when Claude Code refreshes its own login, roughly daily.
 - Plan type: derived, if present, from the `subscriptionType` field of the same local Keychain payload.
 - Usage data: percentages, reset timestamps, and the fetch timestamp from the Anthropic endpoint.
 - Local setting: a boolean remembers whether the user has explicitly enabled the connection to the Claude Code login.
