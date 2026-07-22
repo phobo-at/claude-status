@@ -64,7 +64,7 @@ Then:
 4. Click **Connect to Claude Code** (German: **Mit Claude Code verbinden**) in the menu-bar popover.
 5. Review the Keychain dialog carefully and allow access. For an unchanged, verified build you may choose "Always Allow".
 
-Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the app has no stable Developer ID, every build has a new code identity, so macOS asks for Keychain access once per installed update. It does not ask again in between: the grant survives Claude Code rewriting the login item, so the app re-reads a rotated token without a dialog.
+Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the shareable package is ad-hoc signed, an updated build has a new code identity, so macOS asks for Keychain access once per installed update. It does not ask again in between: the grant survives Claude Code rewriting the login item, so the app re-reads a rotated token without a dialog. For personal use, you can instead create a stable local build with a free Apple Development identity as described below.
 
 ## Develop & test locally
 
@@ -80,6 +80,26 @@ xcodebuild -project ClaudeStatus.xcodeproj -scheme ClaudeStatus \
   -derivedDataPath /tmp/ClaudeStatusDerivedData \
   CODE_SIGNING_ALLOWED=NO test       # tests
 ```
+
+### Personal build with fewer Keychain prompts
+
+A paid Apple Developer Program membership is not required for a personal build. Xcode can create an Apple Development signing identity for the Personal Team associated with a free Apple Account:
+
+1. Open **Xcode → Settings → Accounts** and add your Apple Account if necessary.
+2. Select the account, open **Manage Certificates**, then choose **+ → Apple Development**.
+3. Run `./Scripts/build-local.sh`.
+4. Replace your existing `/Applications/ClaudeStatus.app` with `.build/local-output/ClaudeStatus.app`.
+5. Launch the app, connect to Claude Code, review the Keychain dialog, and choose **Always Allow**.
+
+`build-local.sh` automatically uses the first valid Apple Development identity it finds. If you have several, select one explicitly:
+
+```sh
+LOCAL_SIGNING_IDENTITY="Apple Development: NAME (TEAMID)" ./Scripts/build-local.sh
+```
+
+As long as the same signing identity and bundle identifier are used, macOS can recognize subsequent personal builds by a stable code requirement, so the Keychain grant should survive rebuilds. If the script reports that it is falling back to ad-hoc signing, create or renew the Apple Development certificate in Xcode before rebuilding.
+
+An Apple Development identity is not a Developer ID: it does not make the app notarized or suitable for distribution. Do not upload the personally signed `.app`; other users should build and sign their own local copy. The source code remains safe to commit and publish normally.
 
 ## Optional: notarized package
 
