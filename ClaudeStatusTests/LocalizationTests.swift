@@ -67,6 +67,7 @@ final class LocalizationTests: XCTestCase {
         "%@ used",
         "Access to the Claude Code login was denied.",
         "All models",
+        "Cached data",
         "Check again",
         "Claude is temporarily unavailable (HTTP %lld).",
         "Claude received too many refreshes.",

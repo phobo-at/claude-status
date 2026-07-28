@@ -15,11 +15,50 @@ enum UsageDisplayState: Equatable, Sendable {
 final class UsageStore: ObservableObject {
     /// Anthropic rate-limits `/api/oauth/usage` per account and answers a 429 with a
     /// half-hour `Retry-After`. Claude Code polls the same endpoint on the same account,
-    /// so the budget is shared and the app has to spend it sparingly. Every window this
-    /// app shows moves over hours or days; polling faster than this buys nothing and
-    /// costs the account its quota.
-    static let automaticRefreshInterval: TimeInterval = 15 * 60
-    static let minimumAutomaticRefreshAge: TimeInterval = 10 * 60
+    /// so the budget is shared and the app has to spend it sparingly. The saving grace:
+    /// a stale percentage is only *visibly* stale while usage is climbing, and usage only
+    /// climbs while Claude is actively in use. So the poll cadence adapts — fast while
+    /// consecutive fetches show utilization increasing, slow once it goes flat — which
+    /// keeps the display effectively current when it matters without raising the
+    /// steady-state spend. A 429 clamps straight back to the idle cadence.
+    nonisolated static let automaticRefreshInterval: TimeInterval = 15 * 60
+    nonisolated static let minimumAutomaticRefreshAge: TimeInterval = 10 * 60
+    nonisolated static let activeRefreshInterval: TimeInterval = 5 * 60
+    nonisolated static let minimumActiveRefreshAge: TimeInterval = 4 * 60
+    /// A delta against a much older snapshot says nothing about the *current* rate of
+    /// use, so it must not switch the cadence to active.
+    static let activityComparisonWindow: TimeInterval = 30 * 60
+    /// Flat fetches in a row before the cadence drops back to idle.
+    static let idleConfirmationCount = 2
+
+    enum PollingCadence: Equatable, Sendable {
+        case idle
+        case active
+
+        var interval: TimeInterval {
+            self == .active
+                ? UsageStore.activeRefreshInterval
+                : UsageStore.automaticRefreshInterval
+        }
+
+        var minimumRefreshAge: TimeInterval {
+            self == .active
+                ? UsageStore.minimumActiveRefreshAge
+                : UsageStore.minimumAutomaticRefreshAge
+        }
+    }
+    /// Opening the popover is the user asking "how much is left, right now", so it gets a
+    /// shorter gate than the background tick. It is still a gate: repeatedly opening the
+    /// menu costs at most one request per interval, and only while someone is looking.
+    static let minimumInteractiveRefreshAge: TimeInterval = 3 * 60
+    /// Grace period added after a window's `resets_at` before the confirming fetch, so
+    /// clock skew between the Mac and Anthropic cannot land the request just before the
+    /// rollover and read the old value back.
+    static let resetRefreshGrace: TimeInterval = 20
+    /// Resets further out than this are left to the polling loop. Every accepted snapshot
+    /// reschedules, so a weekly window is picked up once it comes within the horizon
+    /// instead of parking a task for days.
+    static let resetRefreshHorizon: TimeInterval = 6 * 60 * 60
 
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var planName: String?
@@ -45,8 +84,12 @@ final class UsageStore: ObservableObject {
     private var activeCredential: ClaudeCredential?
     private var lastAttemptAt: Date?
     private var consecutiveFailures = 0
+    private(set) var pollingCadence: PollingCadence = .idle
+    private var unchangedFetchCount = 0
     private var pollingTask: Task<Void, Never>?
+    private var resetRefreshTask: Task<Void, Never>?
     private var wakeObserver: (any NSObjectProtocol)?
+    private var screenWakeObserver: (any NSObjectProtocol)?
 
     init(
         credentialProvider: any CredentialProviding = KeychainCredentialProvider(),
@@ -100,12 +143,13 @@ final class UsageStore: ObservableObject {
         hasStarted = true
 
         snapshot = await cache.load()
+        scheduleResetRefresh()
 
         installMonitoring()
 
         if isConnectionAuthorized {
             if snapshot != nil {
-                state = .stale("Gespeicherter Stand")
+                state = .stale(String(localized: "Cached data"))
             } else {
                 state = .loading
             }
@@ -140,7 +184,7 @@ final class UsageStore: ObservableObject {
         guard isConnectionAuthorized else {
             return
         }
-        await refreshAutomaticallyIfStale()
+        await refreshAutomaticallyIfStale(minimumAge: Self.minimumInteractiveRefreshAge)
     }
 
     func manualRefresh() async {
@@ -216,9 +260,11 @@ final class UsageStore: ObservableObject {
         return try await usageClient.fetchUsage(accessToken: credential.accessToken)
     }
 
-    private func refreshAutomaticallyIfStale() async {
+    private func refreshAutomaticallyIfStale(
+        minimumAge: TimeInterval = UsageStore.minimumAutomaticRefreshAge
+    ) async {
         if let fetchedAt = snapshot?.fetchedAt,
-           now().timeIntervalSince(fetchedAt) < Self.minimumAutomaticRefreshAge
+           now().timeIntervalSince(fetchedAt) < minimumAge
         {
             return
         }
@@ -226,12 +272,76 @@ final class UsageStore: ObservableObject {
     }
 
     private func accept(_ newSnapshot: UsageSnapshot) async {
+        updateCadence(with: newSnapshot)
         snapshot = newSnapshot
         state = .current
         consecutiveFailures = 0
         retryAfterUntil = nil
         automaticBackoffUntil = nil
+        scheduleResetRefresh()
+        scheduleNextPoll()
         await cache.save(newSnapshot)
+    }
+
+    /// Climbing utilization between two recent fetches switches to the fast cadence;
+    /// `idleConfirmationCount` flat fetches in a row drop back to the slow one.
+    private func updateCadence(with newSnapshot: UsageSnapshot) {
+        guard let previous = snapshot,
+              newSnapshot.fetchedAt.timeIntervalSince(previous.fetchedAt)
+              <= Self.activityComparisonWindow
+        else {
+            return
+        }
+
+        if newSnapshot.showsIncreasedUsage(since: previous) {
+            pollingCadence = .active
+            unchangedFetchCount = 0
+        } else {
+            unchangedFetchCount += 1
+            if unchangedFetchCount >= Self.idleConfirmationCount {
+                pollingCadence = .idle
+            }
+        }
+    }
+
+    /// Delay until the fetch that confirms the next window rollover, or nil if none is due
+    /// within the horizon. Pure so the schedule can be asserted without waiting on a clock.
+    static func resetRefreshDelay(for snapshot: UsageSnapshot?, now: Date) -> TimeInterval? {
+        guard let nextReset = snapshot?.nextReset(after: now) else {
+            return nil
+        }
+
+        let delay = nextReset.timeIntervalSince(now) + resetRefreshGrace
+        guard delay > 0, delay <= resetRefreshHorizon else {
+            return nil
+        }
+        return delay
+    }
+
+    /// Puts one fetch right after the next window reset. The menu bar's percentage drops to
+    /// zero at that moment, and waiting for the next uniform tick shows the old number for
+    /// up to a quarter hour. This costs no extra requests in the steady state: it replaces
+    /// a tick rather than adding to one, and it goes through the same `force: false` path,
+    /// so `Retry-After` and the backoff still hold it back.
+    private func scheduleResetRefresh() {
+        resetRefreshTask?.cancel()
+        resetRefreshTask = nil
+
+        guard let delay = Self.resetRefreshDelay(for: snapshot, now: now()) else {
+            return
+        }
+
+        resetRefreshTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            await self?.refresh(force: false, allowCredentialPrompt: false)
+        }
     }
 
     private func handleConnectionError(_ error: any Error) {
@@ -277,8 +387,13 @@ final class UsageStore: ObservableObject {
         let currentDate = now()
         if let retryAfter {
             retryAfterUntil = currentDate.addingTimeInterval(max(1, retryAfter))
+            // A rate limit means the account's shared budget is exhausted: stop the fast
+            // cadence until fresh evidence of activity arrives after recovery.
+            pollingCadence = .idle
+            unchangedFetchCount = 0
         }
         automaticBackoffUntil = currentDate.addingTimeInterval(backoff[index])
+        scheduleNextPoll()
 
         let message = error.localizedDescription
         if snapshot != nil {
@@ -288,29 +403,91 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    private func installMonitoring() {
+    /// Delay until the next background poll, anchored to the last successful fetch. The
+    /// anchoring is what kills the old worst case: with a fixed cadence, an off-cycle
+    /// refresh (popover, wake, reset) could leave the next tick facing a too-young
+    /// snapshot, so it skipped and the display aged for interval + gate. Anchored, a tick
+    /// always arrives a full interval after the data it would replace. Gates that are
+    /// still running push the tick past their expiry instead of wasting a wakeup on a
+    /// refresh that would return early.
+    static func nextPollDelay(
+        lastFetchedAt: Date?,
+        interval: TimeInterval,
+        backoffUntil: Date?,
+        retryAfterUntil: Date?,
+        now: Date
+    ) -> TimeInterval {
+        var delay = interval
+        if let lastFetchedAt {
+            delay = min(max(interval - now.timeIntervalSince(lastFetchedAt), 60), interval)
+        }
+        for gate in [backoffUntil, retryAfterUntil] {
+            if let gate, gate > now {
+                delay = max(delay, gate.timeIntervalSince(now) + 1)
+            }
+        }
+        return delay
+    }
+
+    private func scheduleNextPoll() {
+        pollingTask?.cancel()
+
+        let delay = Self.nextPollDelay(
+            lastFetchedAt: snapshot?.fetchedAt,
+            interval: pollingCadence.interval,
+            backoffUntil: automaticBackoffUntil,
+            retryAfterUntil: retryAfterUntil,
+            now: now()
+        )
+
         pollingTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(Self.automaticRefreshInterval))
-                } catch {
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            await self?.pollTick()
+        }
+    }
+
+    private func pollTick() async {
+        await refreshAutomaticallyIfStale(minimumAge: pollingCadence.minimumRefreshAge)
+        // A gated or failed refresh re-arms here; a successful one already re-anchored
+        // in `accept`, and the cancel-first schedule makes the second call harmless.
+        scheduleNextPoll()
+    }
+
+    private func installMonitoring() {
+        scheduleNextPoll()
+
+        let refreshOnWake: @Sendable (Notification) -> Void = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else {
                     return
                 }
-                guard !Task.isCancelled else {
-                    return
-                }
-                await self?.refreshAutomaticallyIfStale()
+                await self.refreshAutomaticallyIfStale(
+                    minimumAge: self.pollingCadence.minimumRefreshAge
+                )
             }
         }
 
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                await self?.refreshAutomaticallyIfStale()
-            }
-        }
+            queue: .main,
+            using: refreshOnWake
+        )
+
+        // Display wake is not system wake: coming back to a Mac whose screen merely
+        // slept should also find a fresh number without anyone clicking.
+        screenWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
+            object: nil,
+            queue: .main,
+            using: refreshOnWake
+        )
     }
 }

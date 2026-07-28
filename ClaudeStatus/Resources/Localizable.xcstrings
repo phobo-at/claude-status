@@ -34,6 +34,17 @@
         }
       }
     },
+    "Cached data" : {
+      "comment" : "Banner shown while the popover displays the last cached snapshot.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gespeicherter Stand"
+          }
+        }
+      }
+    },
     "Check again" : {
       "comment" : "Button that re-checks the login after the user ran claude auth login.",
       "localizations" : {

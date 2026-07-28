@@ -84,4 +84,83 @@ final class UsageModelsTests: XCTestCase {
 
         XCTAssertNil(KeychainCredentialProvider.credential(in: data))
     }
+
+    func testNextResetPicksTheEarliestRolloverStillAhead() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let snapshot = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 50, resetsAt: now.addingTimeInterval(-30)),
+            weeklyAllModels: LimitWindow(utilization: 20, resetsAt: now.addingTimeInterval(900)),
+            weeklySonnet: LimitWindow(utilization: 10, resetsAt: now.addingTimeInterval(300)),
+            weeklyOpus: LimitWindow(utilization: 5, resetsAt: nil),
+            fetchedAt: now
+        )
+
+        XCTAssertEqual(snapshot.nextReset(after: now), now.addingTimeInterval(300))
+    }
+
+    func testShowsIncreasedUsageDetectsAnyWindowClimbing() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let previous = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 50, resetsAt: nil),
+            weeklyAllModels: LimitWindow(utilization: 20, resetsAt: nil),
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+
+        let sessionClimbed = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 51, resetsAt: nil),
+            weeklyAllModels: LimitWindow(utilization: 20, resetsAt: nil),
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+        XCTAssertTrue(sessionClimbed.showsIncreasedUsage(since: previous))
+
+        // A window appearing with real usage counts as activity too.
+        let windowAppeared = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 50, resetsAt: nil),
+            weeklyAllModels: LimitWindow(utilization: 20, resetsAt: nil),
+            weeklySonnet: LimitWindow(utilization: 1, resetsAt: nil),
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+        XCTAssertTrue(windowAppeared.showsIncreasedUsage(since: previous))
+    }
+
+    func testShowsIncreasedUsageIgnoresResetsAndFlatValues() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let previous = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 50, resetsAt: nil),
+            weeklyAllModels: LimitWindow(utilization: 20, resetsAt: nil),
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+
+        XCTAssertFalse(previous.showsIncreasedUsage(since: previous))
+
+        // A drop is a window reset, not activity.
+        let sessionReset = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 0, resetsAt: nil),
+            weeklyAllModels: LimitWindow(utilization: 20, resetsAt: nil),
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+        XCTAssertFalse(sessionReset.showsIncreasedUsage(since: previous))
+    }
+
+    func testNextResetIsNilWhenEveryRolloverIsUnknownOrPast() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let snapshot = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 50, resetsAt: now.addingTimeInterval(-30)),
+            weeklyAllModels: LimitWindow(utilization: 20, resetsAt: nil),
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+
+        XCTAssertNil(snapshot.nextReset(after: now))
+    }
 }

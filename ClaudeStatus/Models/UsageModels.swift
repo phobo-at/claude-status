@@ -51,6 +51,36 @@ struct UsageSnapshot: Codable, Equatable, Sendable {
     var hasAnyLimit: Bool {
         currentSession != nil || weeklyAllModels != nil || weeklySonnet != nil || weeklyOpus != nil
     }
+
+    /// The earliest window rollover still ahead of `date` — the next moment a displayed
+    /// percentage drops on its own, without the user doing anything.
+    func nextReset(after date: Date) -> Date? {
+        [currentSession, weeklyAllModels, weeklySonnet, weeklyOpus]
+            .compactMap { $0?.resetsAt }
+            .filter { $0 > date }
+            .min()
+    }
+
+    /// Whether any window climbed since `previous` — the signal that Claude is actively
+    /// being used right now. Only increases count: utilization falls solely at a window
+    /// reset, which says nothing about current activity.
+    func showsIncreasedUsage(since previous: UsageSnapshot) -> Bool {
+        let pairs: [(LimitWindow?, LimitWindow?)] = [
+            (currentSession, previous.currentSession),
+            (weeklyAllModels, previous.weeklyAllModels),
+            (weeklySonnet, previous.weeklySonnet),
+            (weeklyOpus, previous.weeklyOpus),
+        ]
+        return pairs.contains { current, earlier in
+            guard let current else {
+                return false
+            }
+            guard let earlier else {
+                return current.utilization > 0
+            }
+            return current.utilization > earlier.utilization
+        }
+    }
 }
 
 struct UsagePayload: Decodable, Sendable {

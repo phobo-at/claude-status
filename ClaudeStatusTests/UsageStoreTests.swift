@@ -260,7 +260,14 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertNil(store.activeRetryAfter)
     }
 
-    func testPopoverRefreshesOnlyWhenSnapshotIsOlderThanTheMinimumAge() async {
+    /// Opening the popover is a deliberate "show me now", so it runs on a shorter gate than
+    /// the background triggers — but it is still gated, and still bounded by one request.
+    func testPopoverRefreshesOnTheShorterInteractiveGate() async {
+        XCTAssertLessThan(
+            UsageStore.minimumInteractiveRefreshAge,
+            UsageStore.minimumAutomaticRefreshAge
+        )
+
         let defaults = makeDefaults()
         let clock = TestClock(Date(timeIntervalSince1970: 1_000))
         let usageClient = CountingUsageClient(snapshot: Self.snapshot(utilization: 10))
@@ -277,11 +284,12 @@ final class UsageStoreTests: XCTestCase {
         var requestCount = await usageClient.requestCount
         XCTAssertEqual(requestCount, 1)
 
-        clock.advance(by: UsageStore.minimumAutomaticRefreshAge - 1)
+        clock.advance(by: UsageStore.minimumInteractiveRefreshAge - 1)
         await store.popoverOpened()
         requestCount = await usageClient.requestCount
         XCTAssertEqual(requestCount, 1)
 
+        // One second past the interactive gate, and still far inside the background one.
         clock.advance(by: 1)
         await store.popoverOpened()
         requestCount = await usageClient.requestCount
@@ -345,6 +353,158 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(requestCount, 3)
         XCTAssertNil(store.retryAfterUntil)
         XCTAssertEqual(store.state, .current)
+    }
+
+    func testNextPollDelayAnchorsToTheLastSuccessfulFetch() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let interval = UsageStore.automaticRefreshInterval
+
+        // No snapshot yet: wait a full interval.
+        XCTAssertEqual(
+            UsageStore.nextPollDelay(
+                lastFetchedAt: nil, interval: interval,
+                backoffUntil: nil, retryAfterUntil: nil, now: now
+            ),
+            interval
+        )
+
+        // An off-cycle refresh five minutes ago pushes the tick out to interval-minus-age,
+        // so it can never arrive too young to pass its own gate.
+        XCTAssertEqual(
+            UsageStore.nextPollDelay(
+                lastFetchedAt: now.addingTimeInterval(-5 * 60), interval: interval,
+                backoffUntil: nil, retryAfterUntil: nil, now: now
+            ),
+            interval - 5 * 60
+        )
+
+        // A snapshot already older than the interval polls after the floor, not instantly.
+        XCTAssertEqual(
+            UsageStore.nextPollDelay(
+                lastFetchedAt: now.addingTimeInterval(-2 * interval), interval: interval,
+                backoffUntil: nil, retryAfterUntil: nil, now: now
+            ),
+            60
+        )
+
+        // Running gates move the tick past their expiry instead of wasting a wakeup.
+        XCTAssertEqual(
+            UsageStore.nextPollDelay(
+                lastFetchedAt: now.addingTimeInterval(-2 * interval), interval: interval,
+                backoffUntil: nil, retryAfterUntil: now.addingTimeInterval(1_800), now: now
+            ),
+            1_801
+        )
+    }
+
+    func testClimbingUsageSpeedsUpTheCadenceAndFlatUsageSlowsItDown() async {
+        let defaults = makeDefaults(connected: true)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let usageClient = ScriptedUsageClient(results: [
+            .success(Self.snapshot(utilization: 10)),
+            .success(Self.snapshot(utilization: 12)),
+            .success(Self.snapshot(utilization: 12)),
+            .success(Self.snapshot(utilization: 12)),
+        ])
+        let store = UsageStore(
+            credentialProvider: SuccessfulCredentialProvider(),
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        // First fetch has nothing to compare against: cadence stays idle.
+        await store.start()
+        XCTAssertEqual(store.pollingCadence, .idle)
+
+        // Utilization climbed since the previous fetch: someone is using Claude.
+        clock.advance(by: 60)
+        await store.manualRefresh()
+        XCTAssertEqual(store.pollingCadence, .active)
+
+        // One flat fetch is not yet proof of idleness …
+        clock.advance(by: 60)
+        await store.manualRefresh()
+        XCTAssertEqual(store.pollingCadence, .active)
+
+        // … the second one is.
+        clock.advance(by: 60)
+        await store.manualRefresh()
+        XCTAssertEqual(store.pollingCadence, .idle)
+    }
+
+    func testRateLimitClampsTheCadenceBackToIdle() async {
+        let defaults = makeDefaults(connected: true)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000))
+        let usageClient = ScriptedUsageClient(results: [
+            .success(Self.snapshot(utilization: 10)),
+            .success(Self.snapshot(utilization: 12)),
+            .failure(.rateLimited(retryAfter: 1_800)),
+        ])
+        let store = UsageStore(
+            credentialProvider: SuccessfulCredentialProvider(),
+            usageClient: usageClient,
+            cache: MemorySnapshotCache(),
+            userDefaults: defaults,
+            now: { clock.now }
+        )
+
+        await store.start()
+        clock.advance(by: 60)
+        await store.manualRefresh()
+        XCTAssertEqual(store.pollingCadence, .active)
+
+        clock.advance(by: 60)
+        await store.manualRefresh()
+        XCTAssertEqual(store.pollingCadence, .idle)
+        XCTAssertNotNil(store.retryAfterUntil)
+    }
+
+    func testResetRefreshIsScheduledJustAfterTheEarliestRollover() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let snapshot = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 80, resetsAt: now.addingTimeInterval(600)),
+            weeklyAllModels: LimitWindow(utilization: 40, resetsAt: now.addingTimeInterval(86_400)),
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+
+        XCTAssertEqual(
+            UsageStore.resetRefreshDelay(for: snapshot, now: now),
+            600 + UsageStore.resetRefreshGrace
+        )
+    }
+
+    func testResetRefreshSkipsRolloversAlreadyPastOrBeyondTheHorizon() {
+        let now = Date(timeIntervalSince1970: 1_000)
+
+        // A reset Anthropic has not actually rolled over yet must not arm a retry loop;
+        // the polling interval picks it up instead.
+        let past = UsageSnapshot(
+            currentSession: LimitWindow(utilization: 80, resetsAt: now.addingTimeInterval(-60)),
+            weeklyAllModels: nil,
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+        XCTAssertNil(UsageStore.resetRefreshDelay(for: past, now: now))
+
+        // Weekly windows stay with the polling loop until they come within the horizon.
+        let farOut = UsageSnapshot(
+            currentSession: nil,
+            weeklyAllModels: LimitWindow(
+                utilization: 40,
+                resetsAt: now.addingTimeInterval(UsageStore.resetRefreshHorizon + 60)
+            ),
+            weeklySonnet: nil,
+            weeklyOpus: nil,
+            fetchedAt: now
+        )
+        XCTAssertNil(UsageStore.resetRefreshDelay(for: farOut, now: now))
+
+        XCTAssertNil(UsageStore.resetRefreshDelay(for: nil, now: now))
     }
 
     private func makeStore(
