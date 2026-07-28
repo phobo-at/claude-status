@@ -12,13 +12,13 @@
         }
       }
     },
-    "After you allow it, Claude Status reads your existing Claude Code login from the macOS Keychain once per app launch. It then stays in memory only, and is never stored or logged." : {
+    "When you connect, macOS asks for Keychain access. Choose “Always Allow” to avoid repeated prompts for this installed app. Claude Status reads the login once per app launch, keeps it in memory only, and never stores or logs it." : {
       "comment" : "First-run consent text on the connect screen.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Claude Status liest nach deiner Freigabe den vorhandenen Claude-Code-Login einmal pro App-Start aus dem macOS-Schlüsselbund. Danach bleibt er nur im Arbeitsspeicher und wird weder gespeichert noch protokolliert."
+            "value" : "Beim Verbinden fragt macOS nach dem Schlüsselbundzugriff. Wähle „Immer erlauben“, um wiederholte Abfragen für diese installierte App zu vermeiden. Claude Status liest den Login einmal pro App-Start, behält ihn nur im Arbeitsspeicher und speichert oder protokolliert ihn nie."
           }
         }
       }

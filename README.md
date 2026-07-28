@@ -66,6 +66,21 @@ Then:
 
 Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the shareable package is ad-hoc signed, an updated build has a new code identity, so macOS asks for Keychain access once per installed update. It does not ask again in between: the grant survives Claude Code rewriting the login item, so the app re-reads a rotated token without a dialog. For personal use, you can instead create a stable local build with a free Apple Development identity as described below.
 
+### Repeated Keychain prompts
+
+In the Keychain dialog, **Allow Once** authorizes only the current read; choose **Always Allow** if you trust the installed build and want macOS to remember it. Apple documents the difference in [Allow apps to access your keychain](https://support.apple.com/guide/mac-help/kychn002/mac).
+
+If the dialog specifically names `Claude Code-credentials` and keeps returning between app updates even after **Always Allow**, older builds may have left duplicate Claude Status entries in the item's access list. Reset only those app entries as follows:
+
+1. Quit Claude Status and make sure the copy you trust is installed at `/Applications/ClaudeStatus.app`.
+2. Open **Keychain Access** using Spotlight. Show the sidebar if necessary, then select the **login** keychain.
+3. Search for `Claude Code-credentials`, double-click that password item, and open **Access Control**.
+4. Keep access restricted to listed applications. Remove every existing `ClaudeStatus.app` entry, but preserve `/usr/bin/security`, which Claude Code uses for its own Keychain access.
+5. Add `/Applications/ClaudeStatus.app` exactly once, save the changes, and enter the login Keychain password when macOS asks.
+6. Launch Claude Status again. If one final access dialog appears, verify the app name and choose **Always Allow**.
+
+Do not select **Allow all applications to access this item**, delete the `Claude Code-credentials` item, or reveal/copy its password contents. Those actions are unnecessary and either broaden access or disrupt the Claude Code login. If macOS asks for the login Keychain password generally rather than naming this item, follow Apple's separate guide for a [repeated Keychain password prompt](https://support.apple.com/guide/keychain-access/kyca1242/mac).
+
 ## Develop & test locally
 
 ```sh

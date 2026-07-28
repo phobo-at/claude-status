@@ -68,7 +68,7 @@ struct StatusPopoverView: View {
             Label("Connect to Claude Code", systemImage: "key.fill")
                 .font(.system(size: 14, weight: .semibold))
 
-            Text("After you allow it, Claude Status reads your existing Claude Code login from the macOS Keychain once per app launch. It then stays in memory only, and is never stored or logged.")
+            Text("When you connect, macOS asks for Keychain access. Choose “Always Allow” to avoid repeated prompts for this installed app. Claude Status reads the login once per app launch, keeps it in memory only, and never stores or logs it.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

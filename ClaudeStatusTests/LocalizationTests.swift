@@ -66,7 +66,6 @@ final class LocalizationTests: XCTestCase {
     private static let keys = [
         "%@ used",
         "Access to the Claude Code login was denied.",
-        "After you allow it, Claude Status reads your existing Claude Code login from the macOS Keychain once per app launch. It then stays in memory only, and is never stored or logged.",
         "All models",
         "Check again",
         "Claude is temporarily unavailable (HTTP %lld).",
@@ -104,6 +103,7 @@ final class LocalizationTests: XCTestCase {
         "Updated %lld minutes ago",
         "Updated at %@",
         "Weekly limits",
+        "When you connect, macOS asks for Keychain access. Choose “Always Allow” to avoid repeated prompts for this installed app. Claude Status reads the login once per app launch, keeps it in memory only, and never stores or logs it.",
         "Your Claude login has expired.",
     ]
 }
