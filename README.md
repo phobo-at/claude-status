@@ -62,7 +62,7 @@ Then:
 2. Launch it via right-click → **Open** in Finder.
 3. If macOS still blocks it: **System Settings → Privacy & Security → Open Anyway**.
 4. Click **Connect to Claude Code** (German: **Mit Claude Code verbinden**) in the menu-bar popover.
-5. Review the Keychain dialog carefully and allow access. For an unchanged, verified build you may choose "Always Allow".
+5. Review the Keychain dialog carefully — it should name `Claude Code-credentials` and Claude Status. For a verified build, choose **Always Allow** (German: **Immer erlauben**) and confirm with your login password. That is the only time you type it: the grant persists across launches and across Claude Code's roughly daily token rotation. With plain **Allow**, macOS asks again on every app launch and after every rotation.
 
 Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the shareable package is ad-hoc signed, an updated build has a new code identity, so macOS asks for Keychain access once per installed update. It does not ask again in between: the grant survives Claude Code rewriting the login item, so the app re-reads a rotated token without a dialog. For personal use, you can instead create a stable local build with a free Apple Development identity as described below.
 
