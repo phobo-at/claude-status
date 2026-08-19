@@ -12,13 +12,13 @@
         }
       }
     },
-    "When you connect, macOS asks for Keychain access. Choose “Always Allow” to avoid repeated prompts for this installed app. Claude Status reads the login once per app launch, keeps it in memory only, and never stores or logs it." : {
+    "When you connect, macOS asks for Keychain access. Claude Code renews its login a few times a day, and macOS drops that permission every time it does — so the dialog comes back. Claude Status raises it only at app launch and when you ask for it, never from a background update. The login is kept in memory only, never stored or logged." : {
       "comment" : "First-run consent text on the connect screen.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beim Verbinden fragt macOS nach dem Schlüsselbundzugriff. Wähle „Immer erlauben“, um wiederholte Abfragen für diese installierte App zu vermeiden. Claude Status liest den Login einmal pro App-Start, behält ihn nur im Arbeitsspeicher und speichert oder protokolliert ihn nie."
+            "value" : "Beim Verbinden fragt macOS nach dem Schlüsselbundzugriff. Claude Code erneuert seinen Login mehrmals täglich, und macOS verwirft die Freigabe jedes Mal — der Dialog kommt also wieder. Claude Status löst ihn nur beim App-Start und auf deine Anforderung hin aus, nie aus einer Hintergrundaktualisierung. Der Login bleibt nur im Arbeitsspeicher, wird nie gespeichert oder protokolliert."
           }
         }
       }
@@ -459,6 +459,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Die Claude-Anmeldung ist abgelaufen."
+          }
+        }
+      }
+    },
+    "Allow Keychain access" : {
+      "comment" : "Button that authorizes the one Keychain read after a Claude Code token rotation.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsselbundzugriff erlauben"
+          }
+        }
+      }
+    },
+    "Claude Code renewed its login. macOS needs your permission again." : {
+      "comment" : "Banner shown when the rotated token cannot be read without a Keychain dialog.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code hat seinen Login erneuert. macOS braucht erneut deine Freigabe."
+          }
+        }
+      }
+    },
+    "Claude Code renewed its login, and macOS dropped this app’s Keychain permission along with it. The numbers stay frozen until you allow one more read — nothing happens in the background." : {
+      "comment" : "Explanation on the reauthorization screen.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code hat seinen Login erneuert, und macOS hat die Schlüsselbund-Freigabe dieser App gleich mit verworfen. Die Werte bleiben eingefroren, bis du einen weiteren Lesezugriff erlaubst — im Hintergrund passiert nichts."
+          }
+        }
+      }
+    },
+    "Claude usage, current session: %@ used, Keychain permission needed" : {
+      "comment" : "Menu bar accessibility label while the numbers are frozen.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Nutzung, aktuelle Sitzung: %@ verwendet, Schlüsselbund-Freigabe nötig"
+          }
+        }
+      }
+    },
+    "Keychain permission needed" : {
+      "comment" : "Title of the reauthorization screen.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsselbund-Freigabe nötig"
+          }
+        }
+      }
+    },
+    "Claude usage, current session: %@ used, Claude sign-in required" : {
+      "comment" : "Menu bar accessibility label while the login itself has expired.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Nutzung, aktuelle Sitzung: %@ verwendet, Claude-Anmeldung erforderlich"
           }
         }
       }

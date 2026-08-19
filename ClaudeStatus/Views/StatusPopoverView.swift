@@ -55,6 +55,8 @@ struct StatusPopoverView: View {
             switch store.state {
             case .authenticationRequired:
                 authenticationView
+            case .reauthorizationRequired:
+                reauthorizationView
             case let .failed(message):
                 errorView(message)
             default:
@@ -68,7 +70,7 @@ struct StatusPopoverView: View {
             Label("Connect to Claude Code", systemImage: "key.fill")
                 .font(.system(size: 14, weight: .semibold))
 
-            Text("When you connect, macOS asks for Keychain access. Choose “Always Allow” to avoid repeated prompts for this installed app. Claude Status reads the login once per app launch, keeps it in memory only, and never stores or logs it.")
+            Text("When you connect, macOS asks for Keychain access. Claude Code renews its login a few times a day, and macOS drops that permission every time it does — so the dialog comes back. Claude Status raises it only at app launch and when you ask for it, never from a background update. The login is kept in memory only, never stored or logged.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -136,9 +138,51 @@ struct StatusPopoverView: View {
                 loginCommandButtons
             }
             .padding(.top, 14)
+        case let .reauthorizationRequired(message):
+            VStack(alignment: .leading, spacing: 9) {
+                compactBanner(message, color: .orange, symbol: "key.fill")
+                reauthorizeButton
+                retryAfterHint
+            }
+            .padding(.top, 14)
         default:
             EmptyView()
         }
+    }
+
+    /// macOS discards the Keychain grant on every Claude Code token rotation, so this is not a
+    /// failure the app can retry its way out of — it needs one deliberate click.
+    private var reauthorizationView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Keychain permission needed", systemImage: "key.fill")
+                .font(.system(size: 14, weight: .semibold))
+            Text("Claude Code renewed its login, and macOS dropped this app’s Keychain permission along with it. The numbers stay frozen until you allow one more read — nothing happens in the background.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            reauthorizeButton
+            retryAfterHint
+        }
+    }
+
+    /// The Keychain dialog takes focus, which closes the popover; reopening it while the dialog
+    /// is still unanswered must not show a disabled button with no explanation.
+    private var reauthorizeButton: some View {
+        Button {
+            Task {
+                await store.retryAuthentication()
+            }
+        } label: {
+            if store.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Text("Allow Keychain access")
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(!store.canRefresh)
     }
 
     private var authenticationView: some View {
@@ -227,7 +271,7 @@ struct StatusPopoverView: View {
         HStack(spacing: 10) {
             if let fetchedAt = store.snapshot?.fetchedAt {
                 HStack(spacing: 5) {
-                    if store.isStale {
+                    if store.isStale || store.isWaitingForUser {
                         Circle()
                             .fill(.orange)
                             .frame(width: 6, height: 6)

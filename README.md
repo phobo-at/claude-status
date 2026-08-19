@@ -13,7 +13,7 @@ The menu bar shows the current session's utilization; the popover breaks it down
 
 - Uses only your own existing Claude Code login in the local macOS Keychain.
 - Reads exactly the generic-password item `Claude Code-credentials` for the current macOS user — no fuzzy matching, no legacy fallback.
-- The access token is read once per app launch, kept in memory only, and never stored, logged, copied to the clipboard, or shared. Claude Code refreshes that login roughly daily, so a token rejected with a `401` costs exactly one further Keychain read and one retry; if the freshly read token is rejected too, the automatic fetch stops until you explicitly retry.
+- The access token is read only when you ask for it — at app launch, when you connect, and when you press refresh or **Allow Keychain access** — kept in memory only, and never stored, logged, copied to the clipboard, or shared. No automatic refresh ever touches the Keychain: when the token in memory is rejected, the app freezes the last known numbers and waits for you (see [Repeated Keychain prompts](#repeated-keychain-prompts)). A refresh you do trigger reads the Keychain at most once and makes at most two requests.
 - The token is sent only as a Bearer token over HTTPS to `https://api.anthropic.com/api/oauth/usage` — technically required to fetch your usage.
 - HTTP redirects are rejected; cookies, URL cache, and persistent network storage are disabled.
 - The app never launches a shell or any other program. After an expired login you run `claude auth login` yourself.
@@ -62,22 +62,27 @@ Then:
 2. Launch it via right-click → **Open** in Finder.
 3. If macOS still blocks it: **System Settings → Privacy & Security → Open Anyway**.
 4. Click **Connect to Claude Code** (German: **Mit Claude Code verbinden**) in the menu-bar popover.
-5. Review the Keychain dialog carefully — it should name `Claude Code-credentials` and Claude Status. For a verified build, choose **Always Allow** (German: **Immer erlauben**) and confirm with your login password. That is the only time you type it: the grant persists across launches and across Claude Code's roughly daily token rotation. With plain **Allow**, macOS asks again on every app launch and after every rotation.
+5. Review the Keychain dialog carefully — it should name `Claude Code-credentials` and Claude Status. For a verified build, choose **Always Allow** (German: **Immer erlauben**) and confirm with your login password. That permission lasts until Claude Code next renews its own login, which it does a few times a day; then macOS asks once more. The app raises that dialog only at launch and when you ask for it — see [Repeated Keychain prompts](#repeated-keychain-prompts).
 
-Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the shareable package is ad-hoc signed, an updated build has a new code identity, so macOS asks for Keychain access once per installed update. It does not ask again in between: the grant survives Claude Code rewriting the login item, so the app re-reads a rotated token without a dialog. For personal use, you can instead create a stable local build with a free Apple Development identity as described below.
+Disabling Gatekeeper globally or bulk-removing quarantine attributes is not recommended — the warning is expected macOS behavior for this distribution model. Because the shareable package is ad-hoc signed, an updated build has a new code identity, so macOS asks for Keychain access once per installed update — on top of the prompts Claude Code's token renewals cause anyway. For personal use, you can instead create a stable local build with a free Apple Development identity as described below.
 
 ### Repeated Keychain prompts
 
-In the Keychain dialog, **Allow Once** authorizes only the current read; choose **Always Allow** if you trust the installed build and want macOS to remember it. Apple documents the difference in [Allow apps to access your keychain](https://support.apple.com/guide/mac-help/kychn002/mac).
+The dialog returns a few times a day even after **Always Allow**. That is macOS working as designed, not a broken grant and not something the app can fix.
 
-If the dialog specifically names `Claude Code-credentials` and keeps returning between app updates even after **Always Allow**, older builds may have left duplicate Claude Status entries in the item's access list. Reset only those app entries as follows:
+Claude Code renews its OAuth token several times a day and rewrites its Keychain item through `/usr/bin/security`. That rewrite re-stamps the item's *partition list* with the writing tool's own partition alone, which drops the `teamid:` entry macOS recorded when you chose **Always Allow**. The trusted-application list survives the rewrite — Claude Status stays listed, and every new grant simply appends another entry — but the partition entry does not, so the next read needs a fresh dialog. Re-establishing it requires your login Keychain password, which the app neither has nor wants.
+
+What the app does about it: it never reads the Keychain from a background update. The poll loop, system wake, display wake and opening the popover all refuse to touch it — only app launch and an explicit action do. When the token it holds is rejected, the menu-bar reading dims, the last known numbers stay on screen, and the popover offers **Allow Keychain access** (German: **Schlüsselbundzugriff erlauben**). The dialog appears when you click it — never while you are in the middle of something else.
+
+In the dialog, **Allow Once** authorizes only the current read; **Always Allow** also restores the partition entry, so it holds until Claude Code's next renewal. Apple documents the difference in [Allow apps to access your keychain](https://support.apple.com/guide/mac-help/kychn002/mac).
+
+Repeated grants leave duplicate `ClaudeStatus.app` entries in the item's access list. They are harmless and removing them does not reduce the prompts, but to tidy them up:
 
 1. Quit Claude Status and make sure the copy you trust is installed at `/Applications/ClaudeStatus.app`.
 2. Open **Keychain Access** using Spotlight. Show the sidebar if necessary, then select the **login** keychain.
 3. Search for `Claude Code-credentials`, double-click that password item, and open **Access Control**.
 4. Keep access restricted to listed applications. Remove every existing `ClaudeStatus.app` entry, but preserve `/usr/bin/security`, which Claude Code uses for its own Keychain access.
 5. Add `/Applications/ClaudeStatus.app` exactly once, save the changes, and enter the login Keychain password when macOS asks.
-6. Launch Claude Status again. If one final access dialog appears, verify the app name and choose **Always Allow**.
 
 Do not select **Allow all applications to access this item**, delete the `Claude Code-credentials` item, or reveal/copy its password contents. Those actions are unnecessary and either broaden access or disrupt the Claude Code login. If macOS asks for the login Keychain password generally rather than naming this item, follow Apple's separate guide for a [repeated Keychain password prompt](https://support.apple.com/guide/keychain-access/kyca1242/mac).
 
@@ -112,7 +117,7 @@ A paid Apple Developer Program membership is not required for a personal build. 
 LOCAL_SIGNING_IDENTITY="Apple Development: NAME (TEAMID)" ./Scripts/build-local.sh
 ```
 
-As long as the same signing identity and bundle identifier are used, macOS can recognize subsequent personal builds by a stable code requirement, so the Keychain grant should survive rebuilds. If the script reports that it is falling back to ad-hoc signing, create or renew the Apple Development certificate in Xcode before rebuilding.
+As long as the same signing identity and bundle identifier are used, macOS recognizes subsequent personal builds by a stable code requirement, so a rebuild costs no extra Keychain grant on top of the ones Claude Code's renewals already cost. If the script reports that it is falling back to ad-hoc signing, create or renew the Apple Development certificate in Xcode before rebuilding.
 
 An Apple Development identity is not a Developer ID: it does not make the app notarized or suitable for distribution. Do not upload the personally signed `.app`; other users should build and sign their own local copy. The source code remains safe to commit and publish normally.
 

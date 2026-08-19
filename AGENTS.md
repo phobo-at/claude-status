@@ -39,8 +39,9 @@ and justify it — it is the guardrail, not an obstacle to route around. `SECURI
 
 - **Credentials.** `KeychainCredentialProvider` reads exactly the generic-password item
   `service = "Claude Code-credentials"`, `account = NSUserName()`. No fuzzy matching, no fallback.
-  Claude Code rotates that item roughly daily, which is why a `401` on an in-memory token triggers
-  one keychain re-read and one retry.
+  Claude Code rewrites that item on every token renewal, which revokes the app's read permission
+  along with it — so a `401` on an in-memory token re-reads the keychain only when a user action
+  asked for the refresh, and otherwise freezes the display.
 - **Localization.** Source strings are English and live in
   `ClaudeStatus/Resources/Localizable.xcstrings`; German is a translation. New user-facing copy needs
   the English literal, a German translation in the catalog, **and** the key added to

@@ -165,7 +165,11 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(requestCount, 2)
     }
 
-    func testRotatedTokenIsReReadFromKeychainWithoutUserAction() async {
+    /// The old behaviour — re-reading the keychain straight from a background poll — *is* the
+    /// bug. Claude Code rewrites its keychain item on every rotation, which drops this app's
+    /// entry from the item's partition list, so that read raises a macOS dialog on top of
+    /// whatever the user was doing. It has to wait for the user to ask.
+    func testRotatedTokenIsNotReReadUntilTheUserAsks() async {
         let defaults = makeDefaults(connected: true)
         let clock = TestClock(Date(timeIntervalSince1970: 1_000))
         let credentials = RotatingCredentialProvider(tokens: ["token-1", "token-2"])
@@ -183,16 +187,33 @@ final class UsageStoreTests: XCTestCase {
 
         await store.start()
         XCTAssertEqual(store.state, .current)
+        let lastKnown = store.snapshot
         var credentialReads = await credentials.requestCount
         XCTAssertEqual(credentialReads, 1)
 
-        // Claude Code refreshes its OAuth token: the token this app is holding stops
-        // working, and the keychain now hands out a new one.
+        // Claude Code refreshes its OAuth token: what this app holds stops working.
         await usageClient.rotate(to: "token-2")
         clock.advance(by: UsageStore.minimumAutomaticRefreshAge)
-
         await store.popoverOpened()
 
+        credentialReads = await credentials.requestCount
+        XCTAssertEqual(credentialReads, 1, "an automatic refresh must never open the keychain")
+        XCTAssertTrue(store.needsReauthorization, "expected frozen state, got \(store.state)")
+        // The last known numbers stay on screen rather than falling back to a spinner.
+        XCTAssertEqual(store.snapshot, lastKnown)
+
+        // Every further automatic trigger stays silent: no keychain, and no request either,
+        // because there is no token left to spend the shared rate-limit budget on.
+        let requestsSoFar = await usageClient.requestCount
+        clock.advance(by: UsageStore.automaticRefreshInterval)
+        await store.popoverOpened()
+        credentialReads = await credentials.requestCount
+        let requestsNow = await usageClient.requestCount
+        XCTAssertEqual(credentialReads, 1)
+        XCTAssertEqual(requestsNow, requestsSoFar)
+
+        // Only the user asking reads the keychain — and that recovers.
+        await store.manualRefresh()
         credentialReads = await credentials.requestCount
         XCTAssertEqual(credentialReads, 2)
         XCTAssertEqual(store.state, .current)
@@ -216,18 +237,24 @@ final class UsageStoreTests: XCTestCase {
 
         await store.start()
 
-        // Nothing the keychain hands out is accepted any more: the re-read must happen
-        // exactly once and then stop, rather than loop on the keychain.
         await usageClient.rotate(to: "token-nobody-has")
         clock.advance(by: UsageStore.minimumAutomaticRefreshAge)
         await store.popoverOpened()
 
         var credentialReads = await credentials.requestCount
+        XCTAssertEqual(credentialReads, 1)
+        XCTAssertTrue(store.needsReauthorization, "expected frozen state, got \(store.state)")
+
+        // The user authorizes the read, and the token the keychain hands out is rejected too:
+        // that is a real login problem, so it must be surfaced instead of retried.
+        await store.manualRefresh()
+        credentialReads = await credentials.requestCount
         XCTAssertEqual(credentialReads, 2)
         guard case .authenticationRequired = store.state else {
             return XCTFail("Expected authenticationRequired, got \(store.state)")
         }
 
+        // And the keychain must stay untouched until the user asks again.
         clock.advance(by: UsageStore.minimumAutomaticRefreshAge)
         await store.popoverOpened()
 

@@ -7,9 +7,16 @@ enum UsageDisplayState: Equatable, Sendable {
     case loading
     case current
     case stale(String)
+    /// The stored login itself is the problem: the user has to sign in to Claude Code again.
     case authenticationRequired(String)
+    /// The login is fine, but the token it hands out has been rotated and reading the new one
+    /// needs a Keychain dialog macOS refuses to remember. See `UsageStore.fetchUsage`.
+    case reauthorizationRequired(String)
     case failed(String)
 }
+
+/// Raised when a refresh would have to open the Keychain without the user having asked for it.
+private struct ReauthorizationRequired: Error {}
 
 @MainActor
 final class UsageStore: ObservableObject {
@@ -136,6 +143,24 @@ final class UsageStore: ObservableObject {
         return false
     }
 
+    /// The displayed numbers are frozen until the user authorizes one Keychain read.
+    var needsReauthorization: Bool {
+        if case .reauthorizationRequired = state {
+            return true
+        }
+        return false
+    }
+
+    /// Both states mean the same thing to the poll loop *and* to the display: there is no usable
+    /// token, so every tick would return at `refresh`'s first guard and the numbers on screen are
+    /// frozen. Polling through them burns wakeups, and showing them undimmed reads as live data.
+    var isWaitingForUser: Bool {
+        switch state {
+        case .authenticationRequired, .reauthorizationRequired: true
+        default: false
+        }
+    }
+
     func start() async {
         guard !hasStarted else {
             return
@@ -153,7 +178,7 @@ final class UsageStore: ObservableObject {
             } else {
                 state = .loading
             }
-            await refresh(force: true, allowCredentialPrompt: true)
+            await refresh(force: true, userInitiated: true)
         } else {
             state = .disconnected
         }
@@ -188,23 +213,26 @@ final class UsageStore: ObservableObject {
     }
 
     func manualRefresh() async {
-        await refresh(force: true, allowCredentialPrompt: true)
+        await refresh(force: true, userInitiated: true)
     }
 
     func retryAuthentication() async {
         if isConnectionAuthorized {
-            await refresh(force: true, allowCredentialPrompt: true)
+            await refresh(force: true, userInitiated: true)
         } else {
             await connect()
         }
     }
 
-    func refresh(force: Bool, allowCredentialPrompt: Bool = false) async {
+    /// `userInitiated` is the app's whole defence against surprise Keychain dialogs: it is the
+    /// only thing that lets a refresh reach the Keychain, so the poll loop, system wake, display
+    /// wake, popover-open and the reset tick can never raise one.
+    func refresh(force: Bool, userInitiated: Bool = false) async {
         guard isConnectionAuthorized, !isRefreshing else {
             return
         }
 
-        guard activeCredential != nil || allowCredentialPrompt else {
+        guard activeCredential != nil || userInitiated else {
             return
         }
 
@@ -228,7 +256,7 @@ final class UsageStore: ObservableObject {
         }
 
         do {
-            await accept(try await fetchUsage())
+            await accept(try await fetchUsage(userInitiated: userInitiated))
         } catch {
             handleRefreshError(error)
         }
@@ -236,20 +264,30 @@ final class UsageStore: ObservableObject {
     }
 
     /// Fetches with the in-memory token and, if Claude Code rotated it out from under us,
-    /// re-reads the keychain exactly once and retries with the new one.
+    /// re-reads the keychain exactly once — but only when the user asked for this refresh.
     ///
-    /// The re-read costs the user nothing: the keychain grant is bound to the app's code
-    /// identity, and rewriting the item's data — which is all a rotation does — leaves the
-    /// grant intact, so this never raises a dialog. A 401 on a *freshly* read token is a
-    /// real login problem, so it is surfaced rather than retried; that bounds this at two
-    /// requests and one keychain read per refresh.
-    private func fetchUsage() async throws -> UsageSnapshot {
+    /// The re-read is not free, which is the whole reason for the gate. Claude Code rewrites
+    /// its keychain item through `/usr/bin/security` on every rotation, and that rewrite
+    /// re-stamps the item's *partition list* with the writing tool's partition alone, dropping
+    /// the `teamid:` entry macOS recorded when the user chose "Always Allow" (measured against
+    /// the real item: the trusted-application list survives, the partition list does not). So
+    /// every re-read after a rotation raises a fresh Keychain dialog, and no code in this app
+    /// can keep that grant alive. An automatic refresh therefore gives up here rather than
+    /// interrupting the user with a dialog nobody asked for; the popover turns the read into
+    /// an explicit action instead. A 401 on a *freshly* read token is a real login problem, so
+    /// it is surfaced rather than retried — which bounds a user-initiated refresh at two
+    /// requests and one keychain read.
+    private func fetchUsage(userInitiated: Bool) async throws -> UsageSnapshot {
         if let activeCredential {
             do {
                 return try await usageClient.fetchUsage(accessToken: activeCredential.accessToken)
             } catch UsageClientError.unauthorized {
                 self.activeCredential = nil
             }
+        }
+
+        guard userInitiated else {
+            throw ReauthorizationRequired()
         }
 
         let credential = try await credentialProvider.credential()
@@ -268,7 +306,7 @@ final class UsageStore: ObservableObject {
         {
             return
         }
-        await refresh(force: false, allowCredentialPrompt: false)
+        await refresh(force: false, userInitiated: false)
     }
 
     private func accept(_ newSnapshot: UsageSnapshot) async {
@@ -340,7 +378,7 @@ final class UsageStore: ObservableObject {
             guard !Task.isCancelled else {
                 return
             }
-            await self?.refresh(force: false, allowCredentialPrompt: false)
+            await self?.refresh(force: false, userInitiated: false)
         }
     }
 
@@ -357,6 +395,7 @@ final class UsageStore: ObservableObject {
              UsageClientError.unauthorized:
             activeCredential = nil
             state = .authenticationRequired(error.localizedDescription)
+            scheduleNextPoll()
         case let UsageClientError.rateLimited(retryAfter):
             registerTransientFailure(error: error, retryAfter: retryAfter)
         default:
@@ -366,10 +405,17 @@ final class UsageStore: ObservableObject {
 
     private func handleRefreshError(_ error: any Error) {
         switch error {
+        case is ReauthorizationRequired:
+            enterReauthorizationRequired()
+        case CredentialError.accessDenied:
+            // macOS refused the read — either the dialog was dismissed or it was suppressed.
+            // Backing off would only retry into the same wall, so wait for the user instead.
+            enterReauthorizationRequired()
         case CredentialError.notFound, UsageClientError.unauthorized:
             activeCredential = nil
             state = .authenticationRequired(error.localizedDescription)
-        case CredentialError.accessDenied, CredentialError.invalidPayload, CredentialError.keychain:
+            scheduleNextPoll()
+        case CredentialError.invalidPayload, CredentialError.keychain:
             activeCredential = nil
             registerTransientFailure(error: error)
         case let UsageClientError.rateLimited(retryAfter):
@@ -377,6 +423,16 @@ final class UsageStore: ObservableObject {
         default:
             registerTransientFailure(error: error)
         }
+    }
+
+    /// Freezes the display on the last known numbers and stops the poll loop: without a token
+    /// every further request would 401, and only the user can authorize a new one.
+    private func enterReauthorizationRequired() {
+        activeCredential = nil
+        state = .reauthorizationRequired(
+            String(localized: "Claude Code renewed its login. macOS needs your permission again.")
+        )
+        scheduleNextPoll()
     }
 
     private func registerTransientFailure(error: any Error, retryAfter: TimeInterval? = nil) {
@@ -393,7 +449,6 @@ final class UsageStore: ObservableObject {
             unchangedFetchCount = 0
         }
         automaticBackoffUntil = currentDate.addingTimeInterval(backoff[index])
-        scheduleNextPoll()
 
         let message = error.localizedDescription
         if snapshot != nil {
@@ -401,6 +456,7 @@ final class UsageStore: ObservableObject {
         } else {
             state = .failed(message)
         }
+        scheduleNextPoll()
     }
 
     /// Delay until the next background poll, anchored to the last successful fetch. The
@@ -431,6 +487,12 @@ final class UsageStore: ObservableObject {
 
     private func scheduleNextPoll() {
         pollingTask?.cancel()
+        pollingTask = nil
+
+        // Nothing left to poll for; a successful user-initiated refresh re-arms through `accept`.
+        if isWaitingForUser {
+            return
+        }
 
         let delay = Self.nextPollDelay(
             lastFetchedAt: snapshot?.fetchedAt,

@@ -10,15 +10,25 @@ struct MenuBarLabel: View {
                 .monospacedDigit()
         }
         .fixedSize()
+        // Frozen numbers must not read as live ones. Dimming is the only signal the menu bar
+        // has room for; the popover carries the explanation and the button.
+        .opacity(store.isWaitingForUser ? 0.55 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
     }
 
     private var accessibilityLabel: String {
-        if let utilization = store.currentUtilization {
-            return String(localized: "Claude usage, current session: \(UsageFormatting.percentage(utilization)) used")
+        guard let utilization = store.currentUtilization else {
+            return String(localized: "Claude usage unavailable")
         }
-        return String(localized: "Claude usage unavailable")
+        let percentage = UsageFormatting.percentage(utilization)
+        if store.needsReauthorization {
+            return String(localized: "Claude usage, current session: \(percentage) used, Keychain permission needed")
+        }
+        if store.isWaitingForUser {
+            return String(localized: "Claude usage, current session: \(percentage) used, Claude sign-in required")
+        }
+        return String(localized: "Claude usage, current session: \(percentage) used")
     }
 }
 
